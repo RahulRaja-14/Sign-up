@@ -40,6 +40,12 @@ export async function signup(formData: FormData) {
     password,
     options: {
       emailRedirectTo: `${origin}/auth/callback`,
+      data: {
+        first_name: firstName,
+        last_name: lastName,
+        phone: phone,
+        dob: dob
+      }
     },
   });
   
@@ -53,22 +59,8 @@ export async function signup(formData: FormData) {
     return { error: "An account with this email already exists. Please try logging in or reset your password." };
   }
   
-  if (signUpData.user) {
-    const { error: insertError } = await supabase.from('user_details').insert({
-      id: signUpData.user.id,
-      first_name: firstName,
-      last_name: lastName,
-      email: email,
-      phone: phone,
-      dob: dob
-    });
-
-    if (insertError) {
-      // Potentially delete the auth user if the profile insert fails
-      await supabase.auth.admin.deleteUser(signUpData.user.id);
-      return { error: `Could not create user profile: ${insertError.message}` };
-    }
-  }
+  // The user details are now passed in the options and will be handled by a trigger.
+  // This avoids the RLS issue.
 
   return { error: null };
 }
@@ -83,22 +75,22 @@ export async function forgotPassword(formData: FormData) {
     const email = formData.get("email") as string;
     const supabase = createClient();
 
-    // The most reliable way to check for a user without admin rights is to see
-    // if a password reset request succeeds. Supabase will not send an email
-    // if the user does not exist, but it won't return an error for security reasons.
-    // For a better user experience, we have to accept this limitation.
-    // The previous implementation using admin rights was incorrect.
+    const { data: user, error: findError } = await supabase.auth.admin.getUserByEmail(email);
+
+    if (findError || !user) {
+        // To avoid email enumeration, we don't tell the user if the email was found or not.
+        // The UI will show a generic success message.
+        return { error: null, success: true };
+    }
+
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${headers().get('origin')}/auth/callback?next=/reset-password`
     });
 
     if (error) {
-        // This error is often generic to prevent email enumeration, 
-        // but we can show it if something else goes wrong.
         return { error: error.message, success: false };
     }
 
-    // We can't definitively know if the user exists, but the action was initiated.
     return { error: null, success: true };
 }
 
