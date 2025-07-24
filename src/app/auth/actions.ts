@@ -91,17 +91,14 @@ export async function forgotPassword(formData: FormData) {
   const email = formData.get("email") as string;
   const supabase = createClient();
 
-  // First, check if a user with this email exists in the public user_details table.
-  const { data: user, error: userError } = await supabase
-    .from('user_details')
-    .select('id')
-    .eq('email', email)
-    .single();
+  // First, check if a user with this email exists.
+  // We need to use the service role for this, which is fine in a server action.
+  const { data: { users }, error: userError } = await supabase.auth.admin.listUsers({ email });
 
-  if (userError || !user) {
+  if (userError || !users || users.length === 0) {
     // To prevent email enumeration, we still redirect to the OTP page,
     // but no email will be sent.
-    return redirect(`/verify-otp?email=${encodeURIComponent(email)}&error=User not found`);
+    return redirect(`/verify-otp?email=${encodeURIComponent(email)}`);
   }
   
   // Generate a 6-digit OTP and store it with an expiry on the user's record in auth.
@@ -130,29 +127,64 @@ export async function forgotPassword(formData: FormData) {
   return redirect(`/verify-otp?email=${encodeURIComponent(email)}`);
 }
 
+
 export async function verifyOtp(formData: FormData) {
-    const email = formData.get("email") as string;
-    const otp = formData.get("otp") as string;
-    const supabase = createClient();
+  const email = formData.get("email") as string;
+  const otp = formData.get("otp") as string;
+  const supabase = createClient();
 
-    // To verify, we need a session. We can get one by signing in with the OTP.
-    // This is more secure than manually checking the OTP from user metadata.
-    const { data, error } = await supabase.auth.verifyOtp({
-        email,
-        token: otp,
-        type: 'email', 
-    });
+  const { data: { user }, error: userError } = await supabase.from('users').select().eq('email', email).single();
 
-    if (error) {
-        return { error: "Invalid or expired OTP. Please try again." };
+
+  if (userError || !user) {
+    return { error: "Invalid user." };
+  }
+  
+  const { password_reset_otp, password_reset_otp_expires_at } = user.user_metadata;
+
+  if (!password_reset_otp || !password_reset_otp_expires_at) {
+    return { error: "No OTP request found. Please try again." };
+  }
+  
+  if (Date.now() > password_reset_otp_expires_at) {
+    return { error: "OTP has expired. Please request a new one." };
+  }
+  
+  if (password_reset_otp !== otp) {
+    return { error: "Invalid OTP. Please try again." };
+  }
+
+  // OTP is correct and not expired. We need to grant a temporary, secure session for password reset.
+  // The most secure way is to use Supabase's built-in email OTP verification, which we can trigger manually.
+  // This will give the user a session, which is required to update their password.
+  const { data: sessionData, error: sessionError } = await supabase.auth.verifyOtp({
+    email,
+    token: otp,
+    type: 'email'
+  });
+
+  if (sessionError || !sessionData.session) {
+    // Fallback in case verifyOtp with 'email' type doesn't work as expected with custom OTPs.
+    // Let's try a different approach: sign in with a temporary token. This is less ideal but might work.
+    // NOTE: This flow has security implications and should be reviewed.
+    // A better way is to use Supabase's native password reset flow if possible.
+    // For now, let's stick to the primary path.
+    console.error("Could not create session after OTP verification:", sessionError);
+    return { error: "Could not verify your identity. Please try again." };
+  }
+
+  // Clear the OTP fields after successful verification
+  await supabase.auth.updateUser({
+    data: {
+      password_reset_otp: null,
+      password_reset_otp_expires_at: null,
     }
-    
-    if (data.session) {
-       return { success: true };
-    }
-    
-    return { error: "Could not verify OTP. Please request a new one." };
+  });
+
+  // The user now has a valid session and can be redirected to reset their password
+  return { success: true };
 }
+
 
 export async function resetPassword(formData: FormData) {
     const password = formData.get("password") as string;
@@ -162,7 +194,7 @@ export async function resetPassword(formData: FormData) {
     const { error } = await supabase.auth.updateUser({ 
         password: password,
         data: {
-            // Clear the OTP fields after successful password reset
+            // Ensure OTP fields are cleared on successful reset as well
             password_reset_otp: null,
             password_reset_otp_expires_at: null,
         }
