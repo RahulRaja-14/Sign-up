@@ -42,10 +42,6 @@ export async function signup(formData: FormData) {
         last_name: lastName,
         phone: phone,
         dob: dob,
-        // The email is passed here to be used in the trigger function.
-        // It's already available in the `new` user record in the trigger,
-        // but passing it explicitly in metadata can sometimes be a useful pattern.
-        email: email
       },
     },
   });
@@ -54,6 +50,9 @@ export async function signup(formData: FormData) {
     return { error: signUpError.message };
   }
 
+  // Check if the user already existed.
+  // The user object is not null, but the identities array is empty.
+  // This indicates that the user exists, but a new user was not created.
   if (signUpData.user && signUpData.user.identities && signUpData.user.identities.length === 0) {
     return { error: "An account with this email already exists. Please try logging in or reset your password." };
   }
@@ -72,23 +71,21 @@ export async function forgotPassword(formData: FormData) {
     const email = formData.get("email") as string;
     const supabase = createClient();
 
-    const { data: user, error: findError } = await supabase.from('user_details').select('id').eq('email', email).single();
-
-    if (findError || !user) {
-        // To avoid email enumeration, we don't tell the user if the email was found or not.
-        // The UI will show a generic success message.
-        return { error: null, success: true, message: "If an account with that email exists, a password reset code will be sent." };
-    }
+    // To avoid email enumeration, we'll always return a success message,
+    // whether the user exists or not.
     
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${headers().get('origin')}/auth/callback?next=/reset-password`
     });
 
     if (error) {
-        return { error: error.message, success: false };
+        // Log the error for debugging but don't expose it to the user.
+        console.error("Forgot Password Error:", error.message);
     }
-
-    return { error: null, success: true };
+    
+    // Always redirect to the verify-otp page with the email.
+    // The page itself will inform the user to check their inbox.
+    return redirect(`/verify-otp?email=${email}`);
 }
 
 export async function verifyOtp(formData: FormData) {
