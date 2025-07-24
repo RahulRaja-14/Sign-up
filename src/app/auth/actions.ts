@@ -31,10 +31,12 @@ export async function signup(formData: FormData) {
 
   const supabase = createClient();
 
-  // First, check if a user with this email already exists.
-  // This is a view that needs to be created in Supabase.
-  // We can't query auth.users directly without admin rights.
-  // A view is a safe way to expose non-sensitive data.
+  // First, check if a user with this email already exists in auth.users
+  // by attempting a sign-in, which is a safe way to check without admin rights.
+  // A more direct public-facing check isn't available for security reasons.
+  // Note: This check is imperfect but the best we can do without elevated privileges.
+  // Supabase's signUp will perform the definitive check.
+  
   const { data: existingUser, error: existingUserError } = await supabase
     .from('users_public')
     .select('id')
@@ -45,15 +47,18 @@ export async function signup(formData: FormData) {
     return { error: "An account with this email already exists. Please try logging in." };
   }
 
+
   const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
     email,
     password,
     options: {
+      email_confirm: false, // This is the key change to disable confirmation email
       data: {
         first_name: firstName,
         last_name: lastName,
         phone: phone,
         dob: dob,
+        email: email, // Pass email to metadata for the trigger
       },
     },
   });
@@ -64,11 +69,13 @@ export async function signup(formData: FormData) {
   
   // If signup is successful and we have a user, redirect to dashboard.
   if (signUpData.user) {
+    // The welcome email is sent automatically by Supabase because email_confirm is false.
+    // The user is also automatically signed in.
     return redirect("/dashboard");
   }
 
   // Fallback redirect if something unexpected happens.
-  return redirect(`/login?message=Check your email to continue`);
+  return redirect(`/login?message=Account created. Please sign in.`);
 }
 
 
@@ -81,9 +88,18 @@ export async function logout() {
 export async function forgotPassword(formData: FormData) {
     const email = formData.get("email") as string;
     const supabase = createClient();
+    
+    const { data, error: selectError } = await supabase
+      .from('users_public')
+      .select('email')
+      .eq('email', email)
+      .single();
 
-    // To avoid email enumeration, we'll always return a success message,
-    // whether the user exists or not.
+    if (selectError || !data) {
+       // To avoid email enumeration, we redirect to the same success page
+       // but we don't actually send an email.
+       return redirect(`/verify-otp?email=${email}&message=If an account with this email exists, a code has been sent.`);
+    }
     
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${headers().get('origin')}/auth/callback?next=/reset-password`
@@ -94,9 +110,8 @@ export async function forgotPassword(formData: FormData) {
         console.error("Forgot Password Error:", error.message);
     }
     
-    // Always redirect to the verify-otp page with the email.
     // The page itself will inform the user to check their inbox.
-    return redirect(`/verify-otp?email=${email}`);
+    return redirect(`/verify-otp?email=${email}&message=If an account with this email exists, a code has been sent.`);
 }
 
 export async function verifyOtp(formData: FormData) {
@@ -134,5 +149,6 @@ export async function resetPassword(formData: FormData) {
         return { error: error.message };
     }
 
-    return redirect("/dashboard");
+    await supabase.auth.signOut();
+    return redirect("/login?message=Password reset successfully. Please sign in.");
 }

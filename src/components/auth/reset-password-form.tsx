@@ -51,6 +51,7 @@ export function ResetPasswordForm() {
     const formData = new FormData();
     formData.append("password", values.password);
 
+    // The server action will handle success/error and redirection.
     const result = await resetPassword(formData);
 
     if (result?.error) {
@@ -59,13 +60,9 @@ export function ResetPasswordForm() {
         title: "Error",
         description: result.error,
       });
-    } else {
-      toast({
-        title: "Success",
-        description: "Your password has been reset successfully.",
-      });
-      // The action now handles the redirect.
     }
+    
+    // No need to handle success here, the action redirects.
     setIsSubmitting(false);
   }
 

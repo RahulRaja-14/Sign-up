@@ -9,15 +9,23 @@ import {
 } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Terminal } from "lucide-react";
 
-export default async function ResetPasswordPage() {
+export default async function ResetPasswordPage({
+  searchParams,
+}: {
+  searchParams: { message?: string, error?: string };
+}) {
   const supabase = createClient();
   const {
     data: { session },
   } = await supabase.auth.getSession();
 
+  // This check is important. It ensures that only users who have
+  // successfully verified an OTP can access this page.
   if (!session) {
-     return redirect("/login?error=You must be logged in to reset your password. Please verify the OTP first.");
+     return redirect("/login?error=You must verify an OTP before resetting your password.");
   }
 
 
@@ -34,6 +42,24 @@ export default async function ResetPasswordPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {searchParams.message && (
+             <Alert className="mb-4">
+              <Terminal className="h-4 w-4" />
+              <AlertTitle>Heads up!</AlertTitle>
+              <AlertDescription>
+                {searchParams.message}
+              </AlertDescription>
+            </Alert>
+          )}
+           {searchParams.error && (
+             <Alert variant="destructive" className="mb-4">
+              <Terminal className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>
+                {searchParams.error}
+              </AlertDescription>
+            </Alert>
+          )}
           <ResetPasswordForm />
         </CardContent>
       </Card>
