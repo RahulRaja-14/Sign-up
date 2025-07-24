@@ -34,14 +34,17 @@ export async function signup(formData: FormData) {
 
   const supabase = createClient();
 
-  // Check if user already exists
-  const { data: existingUser, error: existingUserError } = await supabase
-    .from('users')
-    .select('id')
-    .eq('email', email)
-    .single();
+  // Check if user already exists in auth.users
+  const { data: { users }, error: existingUserError } = await supabase.auth.admin.listUsers({
+      email: email,
+  });
 
-  if (existingUser) {
+  if (existingUserError) {
+    // This is an unexpected error.
+    return { error: "Could not check for existing user. Please try again." };
+  }
+  
+  if (users && users.length > 0) {
     return { error: "An account with this email already exists. Please try logging in." };
   }
 
@@ -92,13 +95,9 @@ export async function forgotPassword(formData: FormData) {
     const supabase = createClient();
 
     // 1. Check if the user exists
-    const { data: user, error: userError } = await supabase
-        .from('users')
-        .select('id')
-        .eq('email', email)
-        .single();
+    const { data: { users }, error: userError } = await supabase.auth.admin.listUsers({ email });
 
-    if (userError || !user) {
+    if (userError || !users || users.length === 0) {
         return { error: "This email is not registered. Please sign up." };
     }
     
