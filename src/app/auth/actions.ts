@@ -15,7 +15,10 @@ export async function login(formData: FormData) {
   });
 
   if (error) {
-    return { error: error.message };
+    if (error.message === 'Email not confirmed') {
+      return { error: "Email not confirmed. Please check your inbox for a confirmation link." };
+    }
+    return { error: "Invalid credentials. Please try again." };
   }
 
   return redirect("/dashboard");
@@ -104,7 +107,7 @@ export async function verifyOtp(formData: FormData) {
     });
 
     if (error) {
-        return { error: error.message, success: false };
+        return { error: "Invalid or expired OTP. Please try again.", success: false };
     }
     
     // This will sign the user in, allowing them to reset their password.
@@ -113,7 +116,7 @@ export async function verifyOtp(formData: FormData) {
     } else {
         // This case can happen if the OTP is correct but there's no session to create.
         // It's an edge case but worth handling.
-        return { error: 'Could not verify OTP.', success: false };
+        return { error: 'Could not verify OTP. Please request a new code.', success: false };
     }
 
     return { error: null, success: true };
