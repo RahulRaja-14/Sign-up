@@ -34,17 +34,20 @@ export async function signup(formData: FormData) {
 
   const supabase = createClient();
 
+  // Sign up the user without sending a confirmation email
   const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
     email,
     password,
     options: {
-      email_confirm: false,
+      // Important: This is set to true to prevent the confirmation email.
+      // Supabase sends the "Welcome" email instead if it's enabled.
+      emailRedirectTo: `${headers().get('origin')}/auth/callback`,
       data: {
         first_name: firstName,
         last_name: lastName,
         phone: phone,
         dob: dob,
-        email: email, 
+        email: email,
       },
     },
   });
@@ -56,20 +59,23 @@ export async function signup(formData: FormData) {
     return { error: signUpError.message };
   }
   
+  // After a successful sign-up, automatically sign in the user
   if (signUpData.user) {
-    // Manually sign in the user after successful sign-up
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
     if (signInError) {
+      // If auto-sign-in fails, redirect to login with a message
       return redirect(`/login?message=Account created. Please sign in.`);
     }
 
+    // On successful auto-sign-in, redirect to the dashboard
     return redirect("/dashboard");
   }
 
+  // Fallback redirect
   return redirect(`/login?message=Account created. Please sign in.`);
 }
 
@@ -84,18 +90,19 @@ export async function forgotPassword(formData: FormData) {
     const email = formData.get("email") as string;
     const supabase = createClient();
     
+    // Always call the reset password function.
+    // Supabase handles not sending emails to non-existent users.
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${headers().get('origin')}/auth/callback?next=/reset-password`
+        redirectTo: `${headers().get('origin')}/reset-password`
     });
 
     if (error) {
-      // Even if there's an error (e.g., user not found),
-      // we don't want to reveal that information.
-      // We just log it for debugging.
+      // Log the error for debugging but don't expose it to the client
+      // to prevent email enumeration attacks.
       console.error("Forgot Password Error:", error.message);
     }
     
-    // Always return a success-like message to prevent email enumeration.
+    // Always return a success-like message to the user.
     return { error: null };
 }
 
@@ -110,6 +117,8 @@ export async function resetPassword(formData: FormData) {
         return { error: error.message };
     }
 
+    // After a successful password reset, sign the user out
+    // and redirect them to the login page with a success message.
     await supabase.auth.signOut();
     return redirect("/login?message=Password reset successfully. Please sign in.");
 }
