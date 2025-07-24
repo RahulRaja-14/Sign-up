@@ -104,21 +104,35 @@ export async function logout() {
 }
 
 export async function forgotPassword(formData: FormData) {
-    const email = formData.get("email") as string;
-    const supabase = createClient();
-    
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        // This will send an OTP to the user's email
-    });
+  const email = formData.get("email") as string;
+  const supabase = createClient();
 
-    if (error) {
-        // We don't want to reveal if a user is in the system or not
-        // for security reasons. So we show a generic message.
-        return { error: "Could not send password reset email. Please try again." };
-    }
+  // Check if user exists first
+  const { data: users, error: userError } = await supabase.auth.admin.listUsers();
+  if (userError) {
+      return { error: "Could not verify user. Please try again." };
+  }
 
-    // Redirect to the verify-otp page
-    return redirect(`/verify-otp?email=${encodeURIComponent(email)}`);
+  const userExists = users.users.some(user => user.email === email);
+  if (!userExists) {
+      return { error: "This email is not registered. Please sign up." };
+  }
+
+  // Use signInWithOtp to send a password reset OTP
+  const { error } = await supabase.auth.signInWithOtp({
+    email,
+    options: {
+      // shouldCreateUser needs to be false, so this doesn't create a new user
+      shouldCreateUser: false,
+    },
+  });
+
+  if (error) {
+    return { error: "Could not send OTP. Please try again." };
+  }
+
+  // Redirect to the verify-otp page
+  return redirect(`/verify-otp?email=${encodeURIComponent(email)}`);
 }
 
 export async function verifyOtp(formData: FormData) {
@@ -136,6 +150,8 @@ export async function verifyOtp(formData: FormData) {
         return { error: "Invalid or expired OTP. Please try again." };
     }
     
+    // A session is created on successful OTP verification.
+    // This session allows the user to access the reset password page.
     if (data.session) {
        return { success: true };
     }
@@ -147,11 +163,14 @@ export async function resetPassword(formData: FormData) {
     const password = formData.get("password") as string;
     const supabase = createClient();
 
+    // The user object can be updated because a session exists after OTP verification.
     const { error } = await supabase.auth.updateUser({ password });
 
     if (error) {
         return { error: "Could not update password. Please try again." };
     }
 
+    // After updating, sign the user out to force a new login
+    await supabase.auth.signOut();
     return redirect("/login?message=Your password has been reset successfully. Please sign in.");
 }
