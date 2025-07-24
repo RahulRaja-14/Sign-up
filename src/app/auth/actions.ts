@@ -38,7 +38,7 @@ export async function signup(formData: FormData) {
     email,
     password,
     options: {
-      email_confirm: false, 
+      email_confirm: false,
       data: {
         first_name: firstName,
         last_name: lastName,
@@ -57,6 +57,16 @@ export async function signup(formData: FormData) {
   }
   
   if (signUpData.user) {
+    // Manually sign in the user after successful sign-up
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (signInError) {
+      return redirect(`/login?message=Account created. Please sign in.`);
+    }
+
     return redirect("/dashboard");
   }
 
@@ -79,9 +89,13 @@ export async function forgotPassword(formData: FormData) {
     });
 
     if (error) {
-        console.error("Forgot Password Error:", error.message);
+      // Even if there's an error (e.g., user not found),
+      // we don't want to reveal that information.
+      // We just log it for debugging.
+      console.error("Forgot Password Error:", error.message);
     }
     
+    // Always return a success-like message to prevent email enumeration.
     return { error: null };
 }
 
