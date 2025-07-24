@@ -71,19 +71,43 @@ export async function logout() {
 }
 
 export async function forgotPassword(formData: FormData) {
-    const origin = headers().get('origin');
     const email = formData.get("email") as string;
     const supabase = createClient();
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${origin}/auth/callback?type=recovery`,
+        redirectTo: `${headers().get('origin')}/auth/callback?next=/reset-password`
     });
 
     if (error) {
-        return { error: error.message };
+        return { error: error.message, success: false };
     }
 
-    return { error: null };
+    return { error: null, success: true };
+}
+
+export async function verifyOtp(formData: FormData) {
+    const email = formData.get("email") as string;
+    const otp = formData.get("otp") as string;
+    const supabase = createClient();
+
+    const { data, error } = await supabase.auth.verifyOtp({
+        email,
+        token: otp,
+        type: 'recovery',
+    });
+
+    if (error) {
+        return { error: error.message, success: false };
+    }
+    
+    // This will sign the user in, allowing them to reset their password.
+    if (data.session) {
+        await supabase.auth.setSession(data.session);
+    } else {
+        return { error: 'Could not verify OTP.', success: false };
+    }
+
+    return { error: null, success: true };
 }
 
 export async function resetPassword(formData: FormData) {
@@ -96,5 +120,5 @@ export async function resetPassword(formData: FormData) {
         return { error: error.message };
     }
 
-    return { error: null };
+    return redirect("/dashboard");
 }

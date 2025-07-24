@@ -60,7 +60,7 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  const publicRoutes = ['/login', '/signup', '/forgot-password', '/reset-password', '/auth/callback']
+  const publicRoutes = ['/login', '/signup', '/forgot-password', '/reset-password', '/auth/callback', '/verify-otp']
 
   if (!session && !publicRoutes.includes(pathname) && pathname !== '/') {
       if (pathname.startsWith('/dashboard') || pathname.startsWith('/profile')) {
@@ -68,7 +68,12 @@ export async function middleware(request: NextRequest) {
       }
   }
 
-  if (session && (publicRoutes.includes(pathname) || pathname === '/')) {
+  // Allow access to /reset-password only if coming from the recovery flow, which sets a session.
+  if (pathname === '/reset-password' && !session) {
+      return NextResponse.redirect(new URL('/login?error=Invalid password reset link.', request.url))
+  }
+  
+  if (session && (publicRoutes.includes(pathname) && pathname !== '/reset-password')) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
   

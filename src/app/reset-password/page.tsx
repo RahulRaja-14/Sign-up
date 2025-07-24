@@ -10,27 +10,14 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
-export default async function ResetPasswordPage({
-  searchParams,
-}: {
-  searchParams: { code: string };
-}) {
+export default async function ResetPasswordPage() {
   const supabase = createClient();
   const {
     data: { session },
   } = await supabase.auth.getSession();
 
   if (!session) {
-    if (searchParams.code) {
-      const { error } = await supabase.auth.exchangeCodeForSession(
-        searchParams.code
-      );
-      if (error) {
-        return redirect(`/login?error=${error.message}`);
-      }
-    } else {
-        return redirect("/login?error=No session found and no code provided.");
-    }
+     return redirect("/login?error=You must be logged in to reset your password. Please verify the OTP first.");
   }
 
 

@@ -13,17 +13,17 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { forgotPassword } from "@/app/auth/actions";
+import { verifyOtp } from "@/app/auth/actions";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 const formSchema = z.object({
-  email: z.string().email({ message: "Invalid email address." }),
+  otp: z.string().min(6, { message: "Your one-time password must be 6 characters." }),
 });
 
-export function ForgotPasswordForm() {
+export function VerifyOtpForm({ email }: { email: string }) {
   const { toast } = useToast();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -31,16 +31,17 @@ export function ForgotPasswordForm() {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      email: "",
+      otp: "",
     },
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true);
     const formData = new FormData();
-    formData.append("email", values.email);
+    formData.append("email", email);
+    formData.append("otp", values.otp);
 
-    const result = await forgotPassword(formData);
+    const result = await verifyOtp(formData);
 
     if (result?.error) {
       toast({
@@ -49,7 +50,7 @@ export function ForgotPasswordForm() {
         description: result.error,
       });
     } else if (result?.success) {
-      router.push(`/verify-otp?email=${values.email}`);
+      router.push('/reset-password');
     }
     setIsSubmitting(false);
   }
@@ -59,12 +60,12 @@ export function ForgotPasswordForm() {
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <FormField
           control={form.control}
-          name="email"
+          name="otp"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Email</FormLabel>
+              <FormLabel>One-Time Password</FormLabel>
               <FormControl>
-                <Input placeholder="name@example.com" {...field} />
+                <Input placeholder="123456" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -72,7 +73,7 @@ export function ForgotPasswordForm() {
         />
         <Button type="submit" className="w-full" disabled={isSubmitting}>
           {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Send Code
+          Verify Code
         </Button>
       </form>
     </Form>
