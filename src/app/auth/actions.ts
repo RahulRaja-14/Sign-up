@@ -85,3 +85,32 @@ export async function logout() {
   await supabase.auth.signOut();
   return redirect("/login");
 }
+
+export async function forgotPassword(formData: FormData) {
+    const email = formData.get("email") as string;
+    const supabase = createClient();
+    const origin = headers().get('origin');
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${origin}/reset-password`,
+    });
+
+    if (error) {
+        return { error: "Could not send password reset link. Please try again." };
+    }
+
+    return { success: true };
+}
+
+export async function resetPassword(formData: FormData) {
+    const password = formData.get("password") as string;
+    const supabase = createClient();
+
+    const { error } = await supabase.auth.updateUser({ password });
+
+    if (error) {
+        return redirect("/reset-password?error=Could not update password. Please try again.");
+    }
+
+    return redirect("/login?message=Your password has been reset successfully. Please sign in.");
+}
