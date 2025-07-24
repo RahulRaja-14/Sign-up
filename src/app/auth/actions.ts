@@ -35,16 +35,15 @@ export async function signup(formData: FormData) {
   const supabase = createClient();
 
   // Check if user already exists in auth.users
-  const { data: { users }, error: existingUserError } = await supabase.auth.admin.listUsers({
-      email: email,
-  });
-
-  if (existingUserError) {
-    // This is an unexpected error.
-    return { error: "Could not check for existing user. Please try again." };
-  }
+  const { data: { users }, error: listUsersError } = await supabase.auth.admin.listUsers();
   
-  if (users && users.length > 0) {
+  if (listUsersError) {
+    return { error: "Could not verify user. Please try again." };
+  }
+
+  const existingUser = users.find(user => user.email === email);
+
+  if (existingUser) {
     return { error: "An account with this email already exists. Please try logging in." };
   }
 
@@ -68,19 +67,39 @@ export async function signup(formData: FormData) {
   }
   
   if (signUpData.user) {
+    // Manually insert into user_details table
+    const { error: insertError } = await supabase.from('user_details').insert({
+        id: signUpData.user.id,
+        first_name: firstName,
+        last_name: lastName,
+        phone: phone,
+        dob: dob,
+        email: email,
+    });
+    
+    if (insertError) {
+        // If this fails, we should ideally delete the auth user as well to keep things clean.
+        // For now, we'll just return the error.
+        await supabase.auth.admin.deleteUser(signUpData.user.id);
+        return { error: "Could not create user profile. Please try again." };
+    }
+      
+    // Attempt to sign in the user automatically after sign-up
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
     if (signInError) {
-      return redirect(`/login?message=Account created. Please sign in.`);
+      // If auto sign-in fails, redirect to login with a success message
+      return redirect(`/login?message=Account created successfully. Please sign in.`);
     }
 
+    // If sign-in is successful, redirect to the dashboard
     return redirect("/dashboard");
   }
 
-  return redirect(`/login?message=Account created. Please sign in.`);
+  return redirect(`/login?message=Account created. Please check your email to confirm your account and sign in.`);
 }
 
 
@@ -94,10 +113,16 @@ export async function forgotPassword(formData: FormData) {
     const email = formData.get("email") as string;
     const supabase = createClient();
 
-    // 1. Check if the user exists
-    const { data: { users }, error: userError } = await supabase.auth.admin.listUsers({ email });
+    // 1. Check if the user exists in the auth schema
+    const { data: { users }, error: userError } = await supabase.auth.admin.listUsers();
+    
+    if (userError) {
+      return { error: "Could not verify email. Please try again." };
+    }
 
-    if (userError || !users || users.length === 0) {
+    const userExists = users.some(user => user.email === email);
+
+    if (!userExists) {
         return { error: "This email is not registered. Please sign up." };
     }
     
