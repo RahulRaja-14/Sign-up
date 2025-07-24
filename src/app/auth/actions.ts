@@ -34,18 +34,6 @@ export async function signup(formData: FormData) {
 
   const supabase = createClient();
 
-  const { data: { users }, error: listUsersError } = await supabase.auth.admin.listUsers();
-  
-  if (listUsersError) {
-    // This is a server error, so we can't know if the user exists.
-    // It's better to let the signup proceed and let Supabase handle the duplicate email error.
-  } else {
-    const existingUser = users.find(user => user.email === email);
-    if (existingUser) {
-      return { error: "An account with this email already exists. Please try logging in." };
-    }
-  }
-
   const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
     email,
     password,
@@ -62,6 +50,9 @@ export async function signup(formData: FormData) {
   });
 
   if (signUpError) {
+    if (signUpError.message.includes("User already registered")) {
+        return { error: "An account with this email already exists. Please try logging in." };
+    }
     return { error: signUpError.message };
   }
   
@@ -107,31 +98,24 @@ export async function forgotPassword(formData: FormData) {
   const email = formData.get("email") as string;
   const supabase = createClient();
 
-  // Check if user exists first
-  const { data: users, error: userError } = await supabase.auth.admin.listUsers();
-  if (userError) {
-      return { error: "Could not verify user. Please try again." };
-  }
-
-  const userExists = users.users.some(user => user.email === email);
-  if (!userExists) {
-      return { error: "This email is not registered. Please sign up." };
-  }
-
-  // Use signInWithOtp to send a password reset OTP
+  // We are not checking if the user exists first to prevent email enumeration.
+  // Supabase's signInWithOtp will silently fail if the user does not exist.
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: {
-      // shouldCreateUser needs to be false, so this doesn't create a new user
+      // This ensures that this flow doesn't create a new user
       shouldCreateUser: false,
     },
   });
 
   if (error) {
-    return { error: "Could not send OTP. Please try again." };
+    // We provide a generic error message regardless of the actual error
+    // to avoid leaking information about registered emails.
+    return { error: "Could not send password reset email. Please try again." };
   }
 
-  // Redirect to the verify-otp page
+  // Redirect to the verify-otp page regardless of whether the email was sent,
+  // again, to prevent email enumeration.
   return redirect(`/verify-otp?email=${encodeURIComponent(email)}`);
 }
 
