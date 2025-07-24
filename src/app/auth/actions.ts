@@ -32,6 +32,17 @@ export async function signup(formData: FormData) {
 
   const supabase = createClient();
 
+  // Check if user already exists
+  const { data: { users }, error: userError } = await supabase.auth.admin.listUsers({ email: email });
+
+  if (userError) {
+      return { error: "Could not check if user exists." };
+  }
+  if (users && users.length > 0) {
+      return { error: "An account with this email already exists." };
+  }
+
+
   const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
     email,
     password,
@@ -73,6 +84,17 @@ export async function logout() {
 export async function forgotPassword(formData: FormData) {
     const email = formData.get("email") as string;
     const supabase = createClient();
+
+    // Check if the user exists before sending a password reset email
+    const { data: { users }, error: userError } = await supabase.auth.admin.listUsers({ email: email });
+    
+    if (userError) {
+        return { error: "Could not check user status.", success: false };
+    }
+
+    if (!users || users.length === 0) {
+        return { error: "No account found with this email address.", success: false };
+    }
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${headers().get('origin')}/auth/callback?next=/reset-password`
