@@ -34,6 +34,17 @@ export async function signup(formData: FormData) {
 
   const supabase = createClient();
 
+  // Check if user already exists
+  const { data: existingUser, error: existingUserError } = await supabase
+    .from('users')
+    .select('id')
+    .eq('email', email)
+    .single();
+
+  if (existingUser) {
+    return { error: "An account with this email already exists. Please try logging in." };
+  }
+
   const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
     email,
     password,
@@ -50,9 +61,6 @@ export async function signup(formData: FormData) {
   });
 
   if (signUpError) {
-    if (signUpError.message.includes('unique constraint')) {
-        return { error: "An account with this email already exists. Please try logging in." };
-    }
     return { error: signUpError.message };
   }
   
