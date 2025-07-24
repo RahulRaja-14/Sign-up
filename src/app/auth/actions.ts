@@ -82,16 +82,28 @@ export async function logout() {
 export async function forgotPassword(formData: FormData) {
     const email = formData.get("email") as string;
     const supabase = createClient();
+
+    // 1. Check if the user exists
+    const { data: user, error: userError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', email)
+        .single();
+
+    if (userError || !user) {
+        return { error: "This email is not registered. Please sign up." };
+    }
     
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    // 2. If user exists, send the OTP
+    const { error: otpError } = await supabase.auth.resetPasswordForEmail(email, {
         // This will send an OTP to the user's email
     });
 
-    if (error) {
+    if (otpError) {
         return { error: "Could not send OTP. Please try again." };
     }
 
-    // Redirect to the verify-otp page with the email as a query param
+    // 3. Redirect to the verify-otp page
     return redirect(`/verify-otp?email=${encodeURIComponent(email)}`);
 }
 
@@ -103,15 +115,13 @@ export async function verifyOtp(formData: FormData) {
     const { data, error } = await supabase.auth.verifyOtp({
         email,
         token: otp,
-        type: 'email', // or 'sms'
+        type: 'email',
     });
 
     if (error) {
         return { error: "Invalid or expired OTP. Please try again." };
     }
     
-    // If OTP is correct, Supabase automatically creates a session for the user
-    // allowing them to securely reset their password.
     if (data.session) {
        return { success: true };
     }
