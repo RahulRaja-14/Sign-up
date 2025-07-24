@@ -105,6 +105,7 @@ function Calendar({
         }
       }}
        footer={
+        props.mode === 'single' ? (
         <div className="flex justify-between items-center w-full">
             <Button
                 variant="ghost"
@@ -119,6 +120,7 @@ function Calendar({
                 Today
             </Button>
         </div>
+        ) : null
       }
       {...props}
     />

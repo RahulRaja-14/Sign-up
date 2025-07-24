@@ -17,16 +17,22 @@ import { signup } from "@/app/auth/actions";
 import { useToast } from "@/hooks/use-toast";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { CalendarIcon, Loader2 } from "lucide-react";
+import { CalendarIcon, Eye, EyeOff, Loader2 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { useState } from "react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+const phoneRegex = new RegExp(
+  /^([+]?[\s0-9]+)?(\d{3}|[(]?[0-9]+[)])?([-]?[\s]?[0-9])+$/
+);
 
 const formSchema = z.object({
   firstName: z.string().min(1, { message: "First name is required." }),
   lastName: z.string().min(1, { message: "Last name is required." }),
   email: z.string().email({ message: "Invalid email address." }),
-  phone: z.string().min(1, { message: "Phone number is required." }),
+  countryCode: z.string().min(1, { message: "Country code is required." }),
+  phone: z.string().regex(phoneRegex, 'Invalid Number!'),
   dob: z.date({ required_error: "Date of birth is required." }),
   password: z.string()
     .min(8, { message: "Password must be at least 8 characters long." })
@@ -43,6 +49,8 @@ const formSchema = z.object({
 export function SignUpForm() {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -50,11 +58,20 @@ export function SignUpForm() {
       firstName: "",
       lastName: "",
       email: "",
+      countryCode: "+1",
       phone: "",
       password: "",
       confirmPassword: ""
     },
   });
+
+  const passwordValidation = [
+      { rule: /.{8,}/, text: "Minimum 8 characters" },
+      { rule: /[A-Z]/, text: "At least one uppercase letter" },
+      { rule: /[a-z]/, text: "At least one lowercase letter" },
+      { rule: /[0-9]/, text: "At least one number" },
+      { rule: /[^a-zA-Z0-9]/, text: "At least one special character" },
+  ];
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true);
@@ -62,6 +79,11 @@ export function SignUpForm() {
     Object.entries(values).forEach(([key, value]) => {
       if (value instanceof Date) {
         formData.append(key, value.toISOString());
+      } else if (key === 'phone' || key === 'countryCode') {
+         // combine country code and phone
+        if (key === 'phone') {
+            formData.append('phone', `${values.countryCode} ${values.phone}`)
+        }
       } else if (key !== 'confirmPassword') {
         formData.append(key, value);
       }
@@ -129,20 +151,45 @@ export function SignUpForm() {
             </FormItem>
           )}
         />
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="phone"
-            render={({ field }) => (
-              <FormItem>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormItem>
                 <FormLabel>Phone Number</FormLabel>
-                <FormControl>
-                  <Input placeholder="+1 123 456 7890" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+                <div className="flex gap-2">
+                    <FormField
+                        control={form.control}
+                        name="countryCode"
+                        render={({ field }) => (
+                            <FormItem className="w-24">
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Code" />
+                                    </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="+1">+1 (USA)</SelectItem>
+                                        <SelectItem value="+44">+44 (UK)</SelectItem>
+                                        <SelectItem value="+91">+91 (India)</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                        />
+                    <FormField
+                        control={form.control}
+                        name="phone"
+                        render={({ field }) => (
+                        <FormItem className="flex-1">
+                            <FormControl>
+                            <Input placeholder="123 456 7890" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                </div>
+            </FormItem>
           <FormField
             control={form.control}
             name="dob"
@@ -192,12 +239,24 @@ export function SignUpForm() {
             <FormItem>
               <FormLabel>Password</FormLabel>
               <FormControl>
-                <Input type="password" placeholder="••••••••" {...field} />
+                 <div className="relative">
+                    <Input type={showPassword ? "text" : "password"} placeholder="••••••••" {...field} />
+                    <Button variant="ghost" size="icon" type="button" className="absolute top-0 right-0 h-full px-3" onClick={() => setShowPassword(!showPassword)}>
+                        {showPassword ? <EyeOff /> : <Eye />}
+                    </Button>
+                 </div>
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-1 text-xs">
+            {passwordValidation.map(({ rule, text }) => (
+                <div key={text} className={cn("text-muted-foreground", { "text-primary": rule.test(form.watch("password")) })}>
+                    {text}
+                </div>
+            ))}
+        </div>
         <FormField
             control={form.control}
             name="confirmPassword"
@@ -205,7 +264,12 @@ export function SignUpForm() {
                 <FormItem>
                     <FormLabel>Confirm Password</FormLabel>
                     <FormControl>
-                        <Input type="password" placeholder="••••••••" {...field} />
+                        <div className="relative">
+                            <Input type={showConfirmPassword ? "text" : "password"} placeholder="••••••••" {...field} />
+                            <Button variant="ghost" size="icon" type="button" className="absolute top-0 right-0 h-full px-3" onClick={() => setShowConfirmPassword(!showConfirmPassword)}>
+                                {showConfirmPassword ? <EyeOff /> : <Eye />}
+                            </Button>
+                        </div>
                     </FormControl>
                     <FormMessage />
                 </FormItem>
