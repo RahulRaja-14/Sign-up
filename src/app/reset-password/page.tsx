@@ -22,8 +22,10 @@ export default async function ResetPasswordPage({
     data: { session },
   } = await supabase.auth.getSession();
 
+  // This page should only be accessible if the user has a valid session
+  // which they get after verifying the OTP.
   if (!session) {
-     return redirect("/login?error=Invalid or expired password reset link. Please try again.");
+     return redirect("/login?error=Invalid session. Please try the password reset process again.");
   }
 
 

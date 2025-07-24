@@ -17,8 +17,6 @@ import { forgotPassword } from "@/app/auth/actions";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Terminal } from "lucide-react";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
@@ -27,7 +25,6 @@ const formSchema = z.object({
 export function ForgotPasswordForm() {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -47,27 +44,13 @@ export function ForgotPasswordForm() {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Could not send reset link. Please try again.",
+        description: result.error,
       });
       setIsSubmitting(false);
-    } else {
-      setSubmitted(true);
-      setIsSubmitting(false);
     }
+    // Success will be a redirect, so no need to handle it here.
   }
-
-  if (submitted) {
-    return (
-      <Alert>
-        <Terminal className="h-4 w-4" />
-        <AlertTitle>Check your email</AlertTitle>
-        <AlertDescription>
-          If an account exists for {form.getValues("email")}, you will receive a password reset link. Please check your inbox and spam folder.
-        </AlertDescription>
-      </Alert>
-    );
-  }
-
+  
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -86,7 +69,7 @@ export function ForgotPasswordForm() {
         />
         <Button type="submit" className="w-full" disabled={isSubmitting}>
           {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Send Reset Link
+          Send Code
         </Button>
       </form>
     </Form>

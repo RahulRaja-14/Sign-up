@@ -50,6 +50,10 @@ export function VerifyOtpForm({ email }: { email: string }) {
         description: result.error,
       });
     } else if (result?.success) {
+      toast({
+        title: "Success",
+        description: "OTP verified! You can now reset your password.",
+      });
       router.push('/reset-password');
     }
     setIsSubmitting(false);
@@ -65,7 +69,13 @@ export function VerifyOtpForm({ email }: { email: string }) {
             <FormItem>
               <FormLabel>One-Time Password</FormLabel>
               <FormControl>
-                <Input placeholder="123456" {...field} />
+                <Input 
+                  placeholder="123456" 
+                  {...field} 
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>

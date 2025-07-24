@@ -13,8 +13,11 @@ import { ChevronLeft } from "lucide-react";
 export default function VerifyOtpPage({
     searchParams,
 }: {
-    searchParams: { email: string, message?: string };
+    searchParams: { email?: string };
 }) {
+
+  const email = searchParams.email || 'your email';
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4">
       <Card className="w-full max-w-md">
@@ -24,11 +27,11 @@ export default function VerifyOtpPage({
           </div>
           <CardTitle>Check your email</CardTitle>
           <CardDescription>
-            We've sent a 6-digit code to {searchParams.email}. The code expires shortly, so please enter it soon.
+            We've sent a 6-digit code to {email}. The code expires shortly, so please enter it soon.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <VerifyOtpForm email={searchParams.email} />
+          <VerifyOtpForm email={email} />
            <div className="mt-4 text-center">
              <Link href="/login" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
               <ChevronLeft className="h-4 w-4" />
