@@ -4,7 +4,9 @@ import { redirect } from "next/navigation";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { format } from 'date-fns';
-import { Cake, Mail, Phone, User } from "lucide-react";
+import { Cake, Mail, Phone, User, ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
 type UserDetails = {
   first_name: string;
@@ -59,6 +61,14 @@ export default async function ProfilePage() {
   return (
     <DashboardLayout>
       <div className="mx-auto w-full max-w-2xl">
+        <div className="mb-4">
+          <Button asChild variant="outline">
+            <Link href="/dashboard">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Dashboard
+            </Link>
+          </Button>
+        </div>
         <Card>
           <CardHeader className="items-center text-center">
             <Avatar className="h-24 w-24 mb-4 text-4xl">
