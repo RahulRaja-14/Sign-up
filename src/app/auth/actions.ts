@@ -31,10 +31,7 @@ export async function signup(formData: FormData) {
   const dob = formData.get("dob") as string;
 
   const supabase = createClient();
-  
-  // Supabase's signUp returns a user object if the user already exists, 
-  // but with an empty identities array if email confirmation is on.
-  // We first try to sign them up.
+
   const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
     email,
     password,
@@ -44,26 +41,26 @@ export async function signup(formData: FormData) {
         first_name: firstName,
         last_name: lastName,
         phone: phone,
-        dob: dob
-      }
+        dob: dob,
+        // The email is passed here to be used in the trigger function.
+        // It's already available in the `new` user record in the trigger,
+        // but passing it explicitly in metadata can sometimes be a useful pattern.
+        email: email
+      },
     },
   });
-  
+
   if (signUpError) {
     return { error: signUpError.message };
   }
 
-  // If a user is returned, but their identities are empty, it means they already exist
-  // but may not have confirmed their email.
   if (signUpData.user && signUpData.user.identities && signUpData.user.identities.length === 0) {
     return { error: "An account with this email already exists. Please try logging in or reset your password." };
   }
   
-  // The user details are now passed in the options and will be handled by a trigger.
-  // This avoids the RLS issue.
-
-  return { error: null };
+  return redirect(`/login?message=Check your email to continue`);
 }
+
 
 export async function logout() {
   const supabase = createClient();
@@ -75,14 +72,14 @@ export async function forgotPassword(formData: FormData) {
     const email = formData.get("email") as string;
     const supabase = createClient();
 
-    const { data: user, error: findError } = await supabase.auth.admin.getUserByEmail(email);
+    const { data: user, error: findError } = await supabase.from('user_details').select('id').eq('email', email).single();
 
     if (findError || !user) {
         // To avoid email enumeration, we don't tell the user if the email was found or not.
         // The UI will show a generic success message.
-        return { error: null, success: true };
+        return { error: null, success: true, message: "If an account with that email exists, a password reset code will be sent." };
     }
-
+    
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${headers().get('origin')}/auth/callback?next=/reset-password`
     });
