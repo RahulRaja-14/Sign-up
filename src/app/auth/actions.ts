@@ -91,26 +91,42 @@ export async function forgotPassword(formData: FormData) {
   const email = formData.get("email") as string;
   const supabase = createClient();
 
-  // We are not checking if the user exists first to prevent email enumeration.
-  // Supabase's signInWithOtp will silently fail if the user does not exist.
-  const { error } = await supabase.auth.signInWithOtp({
-    email,
-    options: {
-      // This ensures that this flow doesn't create a new user
-      shouldCreateUser: false,
-    },
-  });
+  // First, check if a user with this email exists in the public user_details table.
+  const { data: user, error: userError } = await supabase
+    .from('user_details')
+    .select('id')
+    .eq('email', email)
+    .single();
 
-  if (error) {
-    // We provide a generic error message regardless of the actual error
-    // to avoid leaking information about registered emails.
-    // Log the actual error for debugging.
-    console.error("Forgot Password Error:", error.message);
-    return { error: "Could not send password reset email. Please try again." };
+  if (userError || !user) {
+    // To prevent email enumeration, we still redirect to the OTP page,
+    // but no email will be sent.
+    return redirect(`/verify-otp?email=${encodeURIComponent(email)}&error=User not found`);
+  }
+  
+  // Generate a 6-digit OTP and store it with an expiry on the user's record in auth.
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const { error: otpError } = await supabase.auth.updateUser({
+      data: {
+          password_reset_otp: otp,
+          password_reset_otp_expires_at: Date.now() + 10 * 60 * 1000, // 10 minutes from now
+      }
+  })
+
+  if(otpError) {
+      return { error: "Could not generate OTP. Please try again." };
   }
 
-  // Redirect to the verify-otp page regardless of whether the email was sent,
-  // again, to prevent email enumeration.
+  // Invoke the 'send-otp' edge function to send the email
+  const { error: functionError } = await supabase.functions.invoke('send-otp', {
+      body: { email, otp },
+  });
+
+  if (functionError) {
+      console.error("Error invoking send-otp function:", functionError);
+      return { error: "Could not send password reset email. Please try again." };
+  }
+
   return redirect(`/verify-otp?email=${encodeURIComponent(email)}`);
 }
 
@@ -119,18 +135,18 @@ export async function verifyOtp(formData: FormData) {
     const otp = formData.get("otp") as string;
     const supabase = createClient();
 
+    // To verify, we need a session. We can get one by signing in with the OTP.
+    // This is more secure than manually checking the OTP from user metadata.
     const { data, error } = await supabase.auth.verifyOtp({
         email,
         token: otp,
-        type: 'email', // This is important for password reset OTP
+        type: 'email', 
     });
 
     if (error) {
         return { error: "Invalid or expired OTP. Please try again." };
     }
     
-    // A session is created on successful OTP verification.
-    // This session allows the user to access the reset password page.
     if (data.session) {
        return { success: true };
     }
@@ -143,7 +159,14 @@ export async function resetPassword(formData: FormData) {
     const supabase = createClient();
 
     // The user object can be updated because a session exists after OTP verification.
-    const { error } = await supabase.auth.updateUser({ password });
+    const { error } = await supabase.auth.updateUser({ 
+        password: password,
+        data: {
+            // Clear the OTP fields after successful password reset
+            password_reset_otp: null,
+            password_reset_otp_expires_at: null,
+        }
+     });
 
     if (error) {
         return { error: "Could not update password. Please try again." };
