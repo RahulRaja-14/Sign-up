@@ -38,33 +38,28 @@ export async function signup(formData: FormData) {
     email,
     password,
     options: {
-      email_confirm: false, // This is the key change to disable confirmation email
+      email_confirm: false, 
       data: {
         first_name: firstName,
         last_name: lastName,
         phone: phone,
         dob: dob,
-        email: email, // Pass email to metadata for the trigger
+        email: email, 
       },
     },
   });
 
   if (signUpError) {
-    // This will catch unique constraint violations for existing emails.
     if (signUpError.message.includes('unique constraint')) {
         return { error: "An account with this email already exists. Please try logging in." };
     }
     return { error: signUpError.message };
   }
   
-  // If signup is successful and we have a user, redirect to dashboard.
   if (signUpData.user) {
-    // The welcome email is sent automatically by Supabase because email_confirm is false.
-    // The user is also automatically signed in.
     return redirect("/dashboard");
   }
 
-  // Fallback redirect if something unexpected happens.
   return redirect(`/login?message=Account created. Please sign in.`);
 }
 
@@ -79,46 +74,17 @@ export async function forgotPassword(formData: FormData) {
     const email = formData.get("email") as string;
     const supabase = createClient();
     
-    // We call this unconditionally to prevent email enumeration.
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${headers().get('origin')}/auth/callback?next=/reset-password`
     });
 
     if (error) {
         console.error("Forgot Password Error:", error.message);
-        // Do not expose the error to the client.
     }
     
-    // Always return a success-like response to prevent email enumeration.
     return { error: null };
 }
 
-export async function verifyOtp(formData: FormData) {
-    const email = formData.get("email") as string;
-    const otp = formData.get("otp") as string;
-    const supabase = createClient();
-
-    const { data, error } = await supabase.auth.verifyOtp({
-        email,
-        token: otp,
-        type: 'recovery',
-    });
-
-    if (error) {
-        return { error: "Invalid or expired OTP. Please try again.", success: false };
-    }
-    
-    // This will sign the user in, allowing them to reset their password.
-    if (data.session) {
-        await supabase.auth.setSession(data.session);
-    } else {
-        // This case can happen if the OTP is correct but there's no session to create.
-        // It's an edge case but worth handling.
-        return { error: 'Could not verify OTP. Please request a new code.', success: false };
-    }
-
-    return { error: null, success: true };
-}
 
 export async function resetPassword(formData: FormData) {
     const password = formData.get("password") as string;

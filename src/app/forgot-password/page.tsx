@@ -20,7 +20,7 @@ export default function ForgotPasswordPage() {
           </div>
           <CardTitle>Forgot Your Password?</CardTitle>
           <CardDescription>
-            No problem. Enter your email and we'll send you a 6-digit code to reset your password.
+            No problem. Enter your email and we'll send you a link to reset your password.
           </CardDescription>
         </CardHeader>
         <CardContent>
