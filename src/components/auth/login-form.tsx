@@ -15,7 +15,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { login } from "@/app/auth/actions";
 import { useToast } from "@/hooks/use-toast";
-import Link from "next/link";
 import { useState } from "react";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 
@@ -78,12 +77,6 @@ export function LoginForm() {
             <FormItem>
               <div className="flex items-center justify-between">
                 <FormLabel>Password</FormLabel>
-                <Link
-                  href="/forgot-password"
-                  className="text-sm font-medium text-primary hover:underline"
-                >
-                  Forgot password?
-                </Link>
               </div>
               <FormControl>
                 <div className="relative">

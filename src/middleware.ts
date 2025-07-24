@@ -60,19 +60,15 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  const publicRoutes = ['/login', '/signup', '/forgot-password', '/reset-password', '/auth/callback']
+  const publicRoutes = ['/login', '/signup', '/auth/callback']
 
   if (!session && !publicRoutes.includes(pathname) && pathname !== '/') {
       if (pathname.startsWith('/dashboard') || pathname.startsWith('/profile')) {
         return NextResponse.redirect(new URL('/login', request.url))
       }
   }
-
-  if (pathname === '/reset-password' && !session) {
-      return NextResponse.redirect(new URL('/login?error=Invalid password reset link.', request.url))
-  }
   
-  if (session && (publicRoutes.includes(pathname) && pathname !== '/reset-password')) {
+  if (session && publicRoutes.includes(pathname)) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
   
