@@ -22,6 +22,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { redirect } from "next/navigation";
 
 const phoneRegex = new RegExp(
   /^([+]?[\s0-9]+)?(\d{3}|[(]?[0-9]+[)])?([-]?[\s]?[0-9])+$/
@@ -78,9 +79,8 @@ export function SignUpForm() {
     const formData = new FormData();
     Object.entries(values).forEach(([key, value]) => {
       if (value instanceof Date) {
-        formData.append(key, value.toISOString());
+        formData.append(key, value.toISOString().split('T')[0]);
       } else if (key === 'phone' || key === 'countryCode') {
-         // combine country code and phone
         if (key === 'phone') {
             formData.append('phone', `${values.countryCode} ${values.phone}`)
         }
@@ -97,14 +97,8 @@ export function SignUpForm() {
         title: "Sign Up Failed",
         description: result.error,
       });
-    } else {
-      toast({
-        title: "Success!",
-        description: "Please check your email to verify your account.",
-      });
-      form.reset();
-    }
-    setIsSubmitting(false);
+      setIsSubmitting(false);
+    } 
   }
 
   return (

@@ -22,7 +22,6 @@ export async function login(formData: FormData) {
 }
 
 export async function signup(formData: FormData) {
-  const origin = headers().get("origin");
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
   const firstName = formData.get("firstName") as string;
@@ -32,11 +31,24 @@ export async function signup(formData: FormData) {
 
   const supabase = createClient();
 
+  // First, check if a user with this email already exists.
+  // This is a view that needs to be created in Supabase.
+  // We can't query auth.users directly without admin rights.
+  // A view is a safe way to expose non-sensitive data.
+  const { data: existingUser, error: existingUserError } = await supabase
+    .from('users_public')
+    .select('id')
+    .eq('email', email)
+    .single();
+
+  if (existingUser) {
+    return { error: "An account with this email already exists. Please try logging in." };
+  }
+
   const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
     email,
     password,
     options: {
-      emailRedirectTo: `${origin}/auth/callback`,
       data: {
         first_name: firstName,
         last_name: lastName,
@@ -49,14 +61,13 @@ export async function signup(formData: FormData) {
   if (signUpError) {
     return { error: signUpError.message };
   }
-
-  // Check if the user already existed.
-  // The user object is not null, but the identities array is empty.
-  // This indicates that the user exists, but a new user was not created.
-  if (signUpData.user && signUpData.user.identities && signUpData.user.identities.length === 0) {
-    return { error: "An account with this email already exists. Please try logging in or reset your password." };
-  }
   
+  // If signup is successful and we have a user, redirect to dashboard.
+  if (signUpData.user) {
+    return redirect("/dashboard");
+  }
+
+  // Fallback redirect if something unexpected happens.
   return redirect(`/login?message=Check your email to continue`);
 }
 
