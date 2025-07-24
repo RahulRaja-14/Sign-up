@@ -38,6 +38,8 @@ export function ForgotPasswordForm() {
     const formData = new FormData();
     formData.append("email", values.email);
 
+    // The server action will handle the redirect on success.
+    // We only need to handle the error case here.
     const result = await forgotPassword(formData);
 
     if (result?.error) {
@@ -48,7 +50,6 @@ export function ForgotPasswordForm() {
       });
       setIsSubmitting(false);
     }
-    // Success will be a redirect, so no need to handle it here.
   }
   
   return (

@@ -72,6 +72,7 @@ export function ResetPasswordForm() {
       });
        setIsSubmitting(false);
     }
+    // On success, the action handles the redirect.
   }
 
   return (
@@ -87,7 +88,7 @@ export function ResetPasswordForm() {
                 <div className="relative">
                     <Input type={showPassword ? "text" : "password"} placeholder="••••••••" {...field} />
                      <Button variant="ghost" size="icon" type="button" className="absolute top-0 right-0 h-full px-3" onClick={() => setShowPassword(!showPassword)}>
-                        {showPassword ? <EyeOff /> : <Eye />}
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </Button>
                 </div>
               </FormControl>
@@ -97,7 +98,7 @@ export function ResetPasswordForm() {
         />
          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1 text-xs">
             {passwordValidation.map(({ rule, text }) => (
-                <div key={text} className={cn("text-muted-foreground", { "text-primary": rule.test(form.watch("password")) })}>
+                <div key={text} className={cn("text-muted-foreground transition-colors", { "text-primary": rule.test(form.watch("password")) })}>
                     {text}
                 </div>
             ))}
@@ -112,7 +113,7 @@ export function ResetPasswordForm() {
                  <div className="relative">
                     <Input type={showConfirmPassword ? "text" : "password"} placeholder="••••••••" {...field} />
                     <Button variant="ghost" size="icon" type="button" className="absolute top-0 right-0 h-full px-3" onClick={() => setShowConfirmPassword(!showConfirmPassword)}>
-                        {showConfirmPassword ? <EyeOff /> : <Eye />}
+                        {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </Button>
                 </div>
               </FormControl>

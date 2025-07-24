@@ -9,15 +9,9 @@ import {
 } from "@/components/ui/card";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
+import { Suspense } from "react";
 
-export default function VerifyOtpPage({
-    searchParams,
-}: {
-    searchParams: { email?: string };
-}) {
-
-  const email = searchParams.email || 'your email';
-
+function VerifyOtpContent({ email }: { email: string }) {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4">
       <Card className="w-full max-w-md">
@@ -27,7 +21,7 @@ export default function VerifyOtpPage({
           </div>
           <CardTitle>Check your email</CardTitle>
           <CardDescription>
-            We've sent a 6-digit code to {email}. The code expires shortly, so please enter it soon.
+            We've sent a 6-digit code to {email || 'your email'}. The code expires shortly, so please enter it soon.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -41,5 +35,17 @@ export default function VerifyOtpPage({
         </CardContent>
       </Card>
     </main>
-  );
+  )
+}
+
+export default function VerifyOtpPage({
+    searchParams,
+}: {
+    searchParams: { email?: string };
+}) {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <VerifyOtpContent email={searchParams.email || ""} />
+    </Suspense>
+  )
 }

@@ -68,23 +68,16 @@ export async function signup(formData: FormData) {
     });
     
     if (insertError) {
+        // If profile creation fails, delete the user to allow them to try again.
         await supabase.auth.admin.deleteUser(signUpData.user.id);
         return { error: "Could not create user profile. Please try again." };
     }
       
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (signInError) {
-      return redirect(`/login?message=Account created successfully. Please sign in.`);
-    }
-
-    return redirect("/dashboard");
+    // Redirect to login with a success message, prompting email verification.
+    return redirect(`/login?message=Account created. Please check your email to confirm your account and sign in.`);
   }
 
-  return redirect(`/login?message=Account created. Please check your email to confirm your account and sign in.`);
+  return redirect(`/login?message=Something went wrong. Please try again.`);
 }
 
 
@@ -111,6 +104,8 @@ export async function forgotPassword(formData: FormData) {
   if (error) {
     // We provide a generic error message regardless of the actual error
     // to avoid leaking information about registered emails.
+    // Log the actual error for debugging.
+    console.error("Forgot Password Error:", error.message);
     return { error: "Could not send password reset email. Please try again." };
   }
 
@@ -127,7 +122,7 @@ export async function verifyOtp(formData: FormData) {
     const { data, error } = await supabase.auth.verifyOtp({
         email,
         token: otp,
-        type: 'email',
+        type: 'email', // This is important for password reset OTP
     });
 
     if (error) {
