@@ -1,36 +1,23 @@
 import { DashboardLayout } from "@/components/dashboard-layout";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Activity, BarChart, BookOpen, Target } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { createClient } from "@/lib/supabase/server";
 
-export default function DashboardPage() {
-  const cards = [
-    { title: "Total Sessions", value: "1,234", icon: Activity },
-    { title: "Interview Score", value: "8.5/10", icon: Target },
-    { title: "Practice Hours", value: "48h", icon: BarChart },
-    { title: "Modules Completed", value: "12/20", icon: BookOpen },
-  ];
+export default async function DashboardPage() {
+  const supabase = createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   return (
     <DashboardLayout>
-      <div className="flex-1 flex items-center justify-center">
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 w-full max-w-4xl">
-          {cards.map((card, index) => (
-            <Card key={index} className="bg-card hover:border-primary/50 transition-colors duration-300">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  {card.title}
-                </CardTitle>
-                <card.icon className="h-5 w-5 text-primary" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{card.value}</div>
-              </CardContent>
-            </Card>
+      <div className="flex-1 flex flex-col items-center justify-center text-center">
+        <h1 className="text-3xl font-bold mb-8">
+          Welcome to Plamento! 🎉
+        </h1>
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2 w-full max-w-xl">
+          {[...Array(4)].map((_, index) => (
+            <Card key={index} className="h-40 bg-card/50 border-dashed border-2 hover:border-primary/50 transition-colors duration-300" />
           ))}
         </div>
       </div>
