@@ -80,19 +80,17 @@ export async function forgotPassword(formData: FormData) {
     const supabase = createClient();
     
     // We call this unconditionally to prevent email enumeration.
-    // Supabase will not send an email if the user does not exist.
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${headers().get('origin')}/auth/callback?next=/reset-password`
     });
 
     if (error) {
-        // Log the error for debugging but don't expose it to the user.
         console.error("Forgot Password Error:", error.message);
+        // Do not expose the error to the client.
     }
     
-    // Always redirect to the verify page, even if there's an error.
-    // The page itself will inform the user what to do next.
-    return redirect(`/verify-otp?email=${email}`);
+    // Always return a success-like response to prevent email enumeration.
+    return { error: null };
 }
 
 export async function verifyOtp(formData: FormData) {

@@ -17,7 +17,8 @@ import { forgotPassword } from "@/app/auth/actions";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Terminal } from "lucide-react";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
@@ -25,8 +26,8 @@ const formSchema = z.object({
 
 export function ForgotPasswordForm() {
   const { toast } = useToast();
-  const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -40,17 +41,31 @@ export function ForgotPasswordForm() {
     const formData = new FormData();
     formData.append("email", values.email);
 
-    // The server action now directly handles redirection,
-    // so we don't need to process a result here.
-    await forgotPassword(formData);
+    const result = await forgotPassword(formData);
 
-    // The redirection happens on the server side, but in case it doesn't,
-    // we can still navigate the user. The server action is the source of truth.
-    // The router.push is handled by the redirect in the server action.
-    
-    // It's generally better to rely on the server's redirect, 
-    // but we'll stop the loading spinner regardless.
-    setIsSubmitting(false);
+    if (result?.error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Could not send reset link. Please try again.",
+      });
+      setIsSubmitting(false);
+    } else {
+      setSubmitted(true);
+      setIsSubmitting(false);
+    }
+  }
+
+  if (submitted) {
+    return (
+      <Alert>
+        <Terminal className="h-4 w-4" />
+        <AlertTitle>Check your email</AlertTitle>
+        <AlertDescription>
+          If an account exists for {form.getValues("email")}, you will receive a password reset link. Please check your inbox and spam folder.
+        </AlertDescription>
+      </Alert>
+    );
   }
 
   return (
@@ -71,7 +86,7 @@ export function ForgotPasswordForm() {
         />
         <Button type="submit" className="w-full" disabled={isSubmitting}>
           {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Send Code
+          Send Reset Link
         </Button>
       </form>
     </Form>
