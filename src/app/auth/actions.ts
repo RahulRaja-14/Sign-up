@@ -34,17 +34,16 @@ export async function signup(formData: FormData) {
 
   const supabase = createClient();
 
-  // Check if user already exists in auth.users
   const { data: { users }, error: listUsersError } = await supabase.auth.admin.listUsers();
   
   if (listUsersError) {
-    return { error: "Could not verify user. Please try again." };
-  }
-
-  const existingUser = users.find(user => user.email === email);
-
-  if (existingUser) {
-    return { error: "An account with this email already exists. Please try logging in." };
+    // This is a server error, so we can't know if the user exists.
+    // It's better to let the signup proceed and let Supabase handle the duplicate email error.
+  } else {
+    const existingUser = users.find(user => user.email === email);
+    if (existingUser) {
+      return { error: "An account with this email already exists. Please try logging in." };
+    }
   }
 
   const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
@@ -78,24 +77,19 @@ export async function signup(formData: FormData) {
     });
     
     if (insertError) {
-        // If this fails, we should ideally delete the auth user as well to keep things clean.
-        // For now, we'll just return the error.
         await supabase.auth.admin.deleteUser(signUpData.user.id);
         return { error: "Could not create user profile. Please try again." };
     }
       
-    // Attempt to sign in the user automatically after sign-up
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
     if (signInError) {
-      // If auto sign-in fails, redirect to login with a success message
       return redirect(`/login?message=Account created successfully. Please sign in.`);
     }
 
-    // If sign-in is successful, redirect to the dashboard
     return redirect("/dashboard");
   }
 
@@ -112,30 +106,18 @@ export async function logout() {
 export async function forgotPassword(formData: FormData) {
     const email = formData.get("email") as string;
     const supabase = createClient();
-
-    // 1. Check if the user exists in the auth schema
-    const { data: { users }, error: userError } = await supabase.auth.admin.listUsers();
     
-    if (userError) {
-      return { error: "Could not verify email. Please try again." };
-    }
-
-    const userExists = users.some(user => user.email === email);
-
-    if (!userExists) {
-        return { error: "This email is not registered. Please sign up." };
-    }
-    
-    // 2. If user exists, send the OTP
-    const { error: otpError } = await supabase.auth.resetPasswordForEmail(email, {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
         // This will send an OTP to the user's email
     });
 
-    if (otpError) {
-        return { error: "Could not send OTP. Please try again." };
+    if (error) {
+        // We don't want to reveal if a user is in the system or not
+        // for security reasons. So we show a generic message.
+        return { error: "Could not send password reset email. Please try again." };
     }
 
-    // 3. Redirect to the verify-otp page
+    // Redirect to the verify-otp page
     return redirect(`/verify-otp?email=${encodeURIComponent(email)}`);
 }
 
