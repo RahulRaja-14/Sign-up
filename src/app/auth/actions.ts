@@ -31,23 +31,6 @@ export async function signup(formData: FormData) {
 
   const supabase = createClient();
 
-  // First, check if a user with this email already exists in auth.users
-  // by attempting a sign-in, which is a safe way to check without admin rights.
-  // A more direct public-facing check isn't available for security reasons.
-  // Note: This check is imperfect but the best we can do without elevated privileges.
-  // Supabase's signUp will perform the definitive check.
-  
-  const { data: existingUser, error: existingUserError } = await supabase
-    .from('users_public')
-    .select('id')
-    .eq('email', email)
-    .single();
-
-  if (existingUser) {
-    return { error: "An account with this email already exists. Please try logging in." };
-  }
-
-
   const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
     email,
     password,
@@ -64,6 +47,10 @@ export async function signup(formData: FormData) {
   });
 
   if (signUpError) {
+    // This will catch unique constraint violations for existing emails.
+    if (signUpError.message.includes('unique constraint')) {
+        return { error: "An account with this email already exists. Please try logging in." };
+    }
     return { error: signUpError.message };
   }
   
@@ -89,18 +76,8 @@ export async function forgotPassword(formData: FormData) {
     const email = formData.get("email") as string;
     const supabase = createClient();
     
-    const { data, error: selectError } = await supabase
-      .from('users_public')
-      .select('email')
-      .eq('email', email)
-      .single();
-
-    if (selectError || !data) {
-       // To avoid email enumeration, we redirect to the same success page
-       // but we don't actually send an email.
-       return redirect(`/verify-otp?email=${email}&message=If an account with this email exists, a code has been sent.`);
-    }
-    
+    // We call this unconditionally to prevent email enumeration.
+    // Supabase will not send an email if the user does not exist.
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${headers().get('origin')}/auth/callback?next=/reset-password`
     });
@@ -110,8 +87,9 @@ export async function forgotPassword(formData: FormData) {
         console.error("Forgot Password Error:", error.message);
     }
     
-    // The page itself will inform the user to check their inbox.
-    return redirect(`/verify-otp?email=${email}&message=If an account with this email exists, a code has been sent.`);
+    // Always redirect to the verify page, even if there's an error.
+    // The page itself will inform the user what to do next.
+    return redirect(`/verify-otp?email=${email}`);
 }
 
 export async function verifyOtp(formData: FormData) {
@@ -133,6 +111,8 @@ export async function verifyOtp(formData: FormData) {
     if (data.session) {
         await supabase.auth.setSession(data.session);
     } else {
+        // This case can happen if the OTP is correct but there's no session to create.
+        // It's an edge case but worth handling.
         return { error: 'Could not verify OTP.', success: false };
     }
 

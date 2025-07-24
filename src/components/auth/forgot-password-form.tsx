@@ -40,17 +40,16 @@ export function ForgotPasswordForm() {
     const formData = new FormData();
     formData.append("email", values.email);
 
-    const result = await forgotPassword(formData);
+    // The server action now directly handles redirection,
+    // so we don't need to process a result here.
+    await forgotPassword(formData);
 
-    if (result?.error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: result.error,
-      });
-    } else if (result?.success) {
-      router.push(`/verify-otp?email=${values.email}`);
-    }
+    // The redirection happens on the server side, but in case it doesn't,
+    // we can still navigate the user. The server action is the source of truth.
+    // The router.push is handled by the redirect in the server action.
+    
+    // It's generally better to rely on the server's redirect, 
+    // but we'll stop the loading spinner regardless.
     setIsSubmitting(false);
   }
 

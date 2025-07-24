@@ -9,11 +9,13 @@ import {
 } from "@/components/ui/card";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Terminal } from "lucide-react";
 
 export default function VerifyOtpPage({
     searchParams,
 }: {
-    searchParams: { email: string };
+    searchParams: { email: string, message?: string };
 }) {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4">
@@ -28,11 +30,20 @@ export default function VerifyOtpPage({
           </CardDescription>
         </CardHeader>
         <CardContent>
+           {searchParams.message && (
+             <Alert className="mb-4">
+              <Terminal className="h-4 w-4" />
+              <AlertTitle>Heads up!</AlertTitle>
+              <AlertDescription>
+                {searchParams.message}
+              </AlertDescription>
+            </Alert>
+          )}
           <VerifyOtpForm email={searchParams.email} />
            <div className="mt-4 text-center">
-             <Link href="/forgot-password" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
+             <Link href="/login" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
               <ChevronLeft className="h-4 w-4" />
-              Use a different email
+              Back to Sign In
             </Link>
           </div>
         </CardContent>
