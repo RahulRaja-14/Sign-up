@@ -10,16 +10,29 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal } from "lucide-react";
 import { Suspense } from "react";
+import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+import Link from "next/link";
 
-function ResetPasswordContent({ message, error, email, token } : { message?: string, error?: string, email?: string, token?: string }) {
-    if (!email || !token) {
-       return (
+async function ResetPasswordContent({ message, error }: { message?: string, error?: string }) {
+  const supabase = createClient();
+  const { data: { session }} = await supabase.auth.getSession();
+
+  // This page should only be accessible if the user has a valid session
+  // after clicking the reset link.
+  if (!session) {
+      return (
          <main className="flex min-h-screen flex-col items-center justify-center p-4">
             <Card className="w-full max-w-md">
                 <CardHeader>
-                    <CardTitle>Invalid Link</CardTitle>
-                    <CardDescription>The password reset link is invalid or has expired. Please try again.</CardDescription>
+                    <CardTitle>Invalid or Expired Link</CardTitle>
+                    <CardDescription>The password reset link is invalid or has expired. Please request a new one.</CardDescription>
                 </CardHeader>
+                <CardContent>
+                    <Link href="/forgot-password">
+                        <span className="text-primary hover:underline">Go back to Forgot Password</span>
+                    </Link>
+                </CardContent>
             </Card>
          </main>
        )
@@ -56,7 +69,7 @@ function ResetPasswordContent({ message, error, email, token } : { message?: str
                 </AlertDescription>
               </Alert>
             )}
-            <ResetPasswordForm email={email} token={token} />
+            <ResetPasswordForm />
           </CardContent>
         </Card>
       </main>
@@ -67,15 +80,13 @@ function ResetPasswordContent({ message, error, email, token } : { message?: str
 export default function ResetPasswordPage({
   searchParams,
 }: {
-  searchParams: { message?: string, error?: string, email?: string, token?: string };
+  searchParams: { message?: string, error?: string };
 }) {
   return (
     <Suspense fallback={<div>Loading...</div>}>
       <ResetPasswordContent 
         message={searchParams.message} 
         error={searchParams.error}
-        email={searchParams.email}
-        token={searchParams.token}
       />
     </Suspense>
   )

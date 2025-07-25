@@ -60,23 +60,31 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  const publicRoutes = ['/login', '/signup', '/auth/callback']
+  // Public routes that do not require authentication
+  const publicRoutes = ['/login', '/signup', '/auth/callback', '/forgot-password', '/verify-otp'];
 
-  if (!session && !publicRoutes.includes(pathname) && pathname !== '/') {
-      if (pathname.startsWith('/dashboard') || pathname.startsWith('/profile')) {
-        return NextResponse.redirect(new URL('/login', request.url))
-      }
+  // The /reset-password route is special. It requires a session that is only
+  // granted after a user clicks a password reset link. We don't protect it here
+  // because the page itself will verify the session.
+  const isAuthRoute = publicRoutes.includes(pathname);
+  const isResetPassword = pathname === '/reset-password';
+
+  // If the user has no session and is trying to access a protected page
+  if (!session && !isAuthRoute && !isResetPassword) {
+    return NextResponse.redirect(new URL('/login', request.url));
   }
   
-  if (session && publicRoutes.includes(pathname)) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
+  // If the user has a session and is trying to access a public-only route
+  if (session && isAuthRoute) {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
   
+  // If the user has no session and lands on the root, redirect to login
   if (!session && pathname === '/') {
-    return NextResponse.redirect(new URL('/login', request.url))
+    return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  return response
+  return response;
 }
 
 export const config = {

@@ -43,7 +43,7 @@ const passwordValidation = [
     { rule: /[^a-zA-Z0-9]/, text: "At least one special character" },
 ];
 
-export function ResetPasswordForm({ email, token }: { email: string, token: string}) {
+export function ResetPasswordForm() {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -61,21 +61,12 @@ export function ResetPasswordForm({ email, token }: { email: string, token: stri
     setIsSubmitting(true);
     const formData = new FormData();
     formData.append("password", values.password);
-    formData.append("email", email);
-    formData.append("sessionToken", token);
 
+    // The server action handles redirecting on success or passing an error in the URL
+    await resetPassword(formData);
 
-    const result = await resetPassword(formData);
-
-    if (result?.error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: result.error,
-      });
-       setIsSubmitting(false);
-    }
-    // On success, the action handles the redirect.
+    // We can set submitting to false, but the page will likely redirect before this is seen.
+    setIsSubmitting(false);
   }
 
   return (
