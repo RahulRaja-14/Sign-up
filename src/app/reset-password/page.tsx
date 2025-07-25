@@ -11,9 +11,17 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal } from "lucide-react";
 import { Suspense } from "react";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 
-function ResetPasswordContent({ email, message, error }: { email?: string, message?: string, error?: string }) {
-    if (!email) {
+async function ResetPasswordContent({ message, error }: { message?: string, error?: string }) {
+    const supabase = createClient();
+
+    const { data: { session } } = await supabase.auth.getSession();
+
+    if (!session) {
+      // This can happen if the user tries to access this page directly
+      // or if the recovery link has expired or is invalid.
       return (
          <main className="flex min-h-screen flex-col items-center justify-center p-4">
             <Card className="w-full max-w-md">
@@ -23,7 +31,7 @@ function ResetPasswordContent({ email, message, error }: { email?: string, messa
                 </CardHeader>
                 <CardContent>
                     <Link href="/forgot-password">
-                        <span className="text-primary hover:underline">Go back to Forgot Password</span>
+                        <span className="text-primary hover:underline">Request a new link</span>
                     </Link>
                 </CardContent>
             </Card>
@@ -62,7 +70,7 @@ function ResetPasswordContent({ email, message, error }: { email?: string, messa
                 </AlertDescription>
               </Alert>
             )}
-            <ResetPasswordForm email={email} />
+            <ResetPasswordForm />
           </CardContent>
         </Card>
       </main>
@@ -73,12 +81,11 @@ function ResetPasswordContent({ email, message, error }: { email?: string, messa
 export default function ResetPasswordPage({
   searchParams,
 }: {
-  searchParams: { email?: string, message?: string, error?: string };
+  searchParams: { message?: string, error?: string };
 }) {
   return (
     <Suspense fallback={<div>Loading...</div>}>
       <ResetPasswordContent 
-        email={searchParams.email}
         message={searchParams.message} 
         error={searchParams.error}
       />

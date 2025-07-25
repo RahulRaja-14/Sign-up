@@ -25,7 +25,6 @@ const formSchema = z.object({
 
 export function ForgotPasswordForm() {
   const { toast } = useToast();
-  const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -37,12 +36,6 @@ export function ForgotPasswordForm() {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true);
-    
-    try {
-      localStorage.setItem('reset_email', values.email);
-    } catch (e) {
-      // Local storage might be disabled
-    }
 
     const formData = new FormData();
     formData.append("email", values.email);
@@ -79,7 +72,7 @@ export function ForgotPasswordForm() {
         />
         <Button type="submit" className="w-full" disabled={isSubmitting}>
           {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Send Code
+          Send Reset Link
         </Button>
       </form>
     </Form>

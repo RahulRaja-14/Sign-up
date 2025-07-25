@@ -3,7 +3,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import nodemailer from "nodemailer";
 
 export async function login(formData: FormData) {
   const email = formData.get("email") as string;
@@ -34,12 +33,13 @@ export async function signup(formData: FormData) {
   const dob = formData.get("dob") as string;
 
   const supabase = createClient();
+  const origin = headers().get('origin');
 
   const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
     email,
     password,
     options: {
-      emailRedirectTo: `${headers().get('origin')}/auth/callback`,
+      emailRedirectTo: `${origin}/auth/callback`,
       data: {
         first_name: firstName,
         last_name: lastName,
@@ -74,7 +74,6 @@ export async function signup(formData: FormData) {
         return { error: "Could not create user profile. Please try again." };
     }
       
-    // Redirect to a confirmation page or login page with a message
     return redirect(`/login?message=Account created. Please check your email to confirm your account and sign in.`);
   }
 
@@ -88,147 +87,35 @@ export async function logout() {
   return redirect("/login");
 }
 
-async function sendOtpByEmail(email: string, otp: string) {
-    // This function requires GMAIL_EMAIL and GMAIL_APP_PASSWORD to be set in .env
-    const fromEmail = process.env.GMAIL_EMAIL;
-    const appPassword = process.env.GMAIL_APP_PASSWORD;
-
-    if (!fromEmail || !appPassword) {
-        console.error("Gmail credentials are not set in environment variables.");
-        return { error: "Email service is not configured." };
-    }
-
-    const transporter = nodemailer.createTransport({
-        host: "smtp.gmail.com",
-        port: 465,
-        secure: true,
-        auth: {
-            user: fromEmail,
-            pass: appPassword,
-        },
-    });
-
-    const mailOptions = {
-        from: `"Plamento OTP Service" <${fromEmail}>`,
-        to: email,
-        subject: "Your OTP Code from Plamento",
-        text: `Hello,\n\nYour OTP is: ${otp}\n\nThanks,\nPlamento Team`,
-        html: `<p>Hello,</p><p>Your OTP is: <strong>${otp}</strong></p><p>Thanks,<br/>Plamento Team</p>`,
-    };
-
-    try {
-        await transporter.sendMail(mailOptions);
-        return { success: true };
-    } catch (error) {
-        console.error("Failed to send email:", error);
-        return { error: "Could not send OTP email. Please try again later." };
-    }
-}
-
-
 export async function forgotPassword(formData: FormData) {
   const email = formData.get("email") as string;
   const supabase = createClient();
+  const origin = headers().get('origin');
 
-  const { data: { users }, error: listError } = await supabase.auth.admin.listUsers();
-  
-  if (listError) {
-      console.error("Error listing users:", listError);
-      return { error: "Could not verify user's existence. Please try again." };
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${origin}/reset-password`,
+  });
+
+  if (error) {
+    console.error("Forgot Password Error:", error.message);
+    return { error: "Could not send password reset email. Please try again." };
   }
 
-  const user = users.find(u => u.email === email);
-  
-  if (!user) {
-    // To prevent email enumeration, we don't reveal that the user does not exist.
-    // We'll simply redirect as if an email was sent. The user just won't receive one.
-    return redirect(`/verify-otp?email=${encodeURIComponent(email)}`);
-  }
-
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  const otp_expires_at = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
-
-  const { error: updateError } = await supabase.auth.admin.updateUserById(
-    user.id,
-    { user_metadata: { otp, otp_expires_at: otp_expires_at.toISOString() } }
-  );
-
-  if (updateError) {
-    console.error("Error updating user with OTP:", updateError);
-    return { error: "Could not create a password reset request. Please try again." };
-  }
-  
-  const emailResult = await sendOtpByEmail(email, otp);
-  if (emailResult.error) {
-    return { error: emailResult.error };
-  }
-  
-  return redirect(`/verify-otp?email=${encodeURIComponent(email)}`);
-}
-
-
-export async function verifyOtp(formData: FormData) {
-  const email = formData.get("email") as string;
-  const otp = formData.get("otp") as string;
-  const supabase = createClient();
-
-  const { data: { users }, error: listError } = await supabase.auth.admin.listUsers();
-  if (listError) {
-      console.error("Error listing users:", listError);
-      return { error: "Could not verify user. Please try again." };
-  }
-  const targetUser = users.find(u => u.email === email);
-
-  if(!targetUser) {
-      return { error: "Could not find user to verify. Please try the process again." };
-  }
-  
-  const storedOtp = targetUser.user_metadata?.otp;
-  const expiry = targetUser.user_metadata?.otp_expires_at ? new Date(targetUser.user_metadata.otp_expires_at) : null;
-  
-  if (!storedOtp || !expiry) {
-    return { error: "No OTP request found. Please try again." };
-  }
-
-  if (new Date() > expiry) {
-    await supabase.auth.admin.updateUserById(targetUser.id, { user_metadata: { otp: null, otp_expires_at: null } });
-    return { error: "Your OTP has expired. Please request a new one." };
-  }
-
-  if (storedOtp !== otp) {
-    return { error: "Invalid OTP. Please check the code and try again." };
-  }
-  
-  await supabase.auth.admin.updateUserById(targetUser.id, { user_metadata: { otp: null, otp_expires_at: null } });
-
-  return redirect(`/reset-password?email=${encodeURIComponent(email)}`);
+  return redirect("/login?message=Password reset link has been sent to your email.");
 }
 
 
 export async function resetPassword(formData: FormData) {
     const password = formData.get("password") as string;
-    const email = formData.get("email") as string;
     const supabase = createClient();
     
-    const { data: { users }, error: listError } = await supabase.auth.admin.listUsers();
-    if (listError) {
-        return redirect(`/login?error=Could not find user to update password.`);
-    }
-    const userToUpdate = users.find(u => u.email === email);
+    const { error } = await supabase.auth.updateUser({ password });
 
-    if (!userToUpdate) {
-        return redirect(`/login?error=Could not find user to update password.`);
+    if (error) {
+        console.error("Password Reset Error:", error.message);
+        return redirect(`/reset-password?error=Could not update password. Please try again.`);
     }
 
-    const { error: updateError } = await supabase.auth.admin.updateUserById(
-        userToUpdate.id,
-        { password }
-    );
-
-    if (updateError) {
-        console.error("Password Reset Error:", updateError.message);
-        return redirect(`/reset-password?email=${encodeURIComponent(email)}&error=Could not update password. Please try again.`);
-    }
-
-    return redirect("/login?message=Your password has been reset successfully. Please sign in.");
+    // The user's session is now active, redirect them to the dashboard
+    return redirect("/dashboard?message=Your password has been reset successfully.");
 }

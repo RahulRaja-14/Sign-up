@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { resetPassword } from "@/app/auth/actions";
-import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -43,8 +42,7 @@ const passwordValidation = [
     { rule: /[^a-zA-Z0-9]/, text: "At least one special character" },
 ];
 
-export function ResetPasswordForm({ email }: { email: string }) {
-  const { toast } = useToast();
+export function ResetPasswordForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -61,7 +59,6 @@ export function ResetPasswordForm({ email }: { email: string }) {
     setIsSubmitting(true);
     const formData = new FormData();
     formData.append("password", values.password);
-    formData.append("email", email);
 
     // The server action handles redirecting on success or passing an error in the URL
     await resetPassword(formData);
