@@ -7,22 +7,22 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal } from "lucide-react";
 import { Suspense } from "react";
 
-async function ResetPasswordContent({ message, error } : { message?: string, error?: string }) {
-    const supabase = createClient();
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-  
-    // This page should only be accessible if the user has a valid session
-    // which they get after verifying the OTP.
-    if (!session) {
-       return redirect("/login?error=Invalid session. Please try the password reset process again.");
+function ResetPasswordContent({ message, error, email, token } : { message?: string, error?: string, email?: string, token?: string }) {
+    if (!email || !token) {
+       return (
+         <main className="flex min-h-screen flex-col items-center justify-center p-4">
+            <Card className="w-full max-w-md">
+                <CardHeader>
+                    <CardTitle>Invalid Link</CardTitle>
+                    <CardDescription>The password reset link is invalid or has expired. Please try again.</CardDescription>
+                </CardHeader>
+            </Card>
+         </main>
+       )
     }
   
     return (
@@ -56,7 +56,7 @@ async function ResetPasswordContent({ message, error } : { message?: string, err
                 </AlertDescription>
               </Alert>
             )}
-            <ResetPasswordForm />
+            <ResetPasswordForm email={email} token={token} />
           </CardContent>
         </Card>
       </main>
@@ -67,11 +67,16 @@ async function ResetPasswordContent({ message, error } : { message?: string, err
 export default function ResetPasswordPage({
   searchParams,
 }: {
-  searchParams: { message?: string, error?: string };
+  searchParams: { message?: string, error?: string, email?: string, token?: string };
 }) {
   return (
     <Suspense fallback={<div>Loading...</div>}>
-      <ResetPasswordContent message={searchParams.message} error={searchParams.error} />
+      <ResetPasswordContent 
+        message={searchParams.message} 
+        error={searchParams.error}
+        email={searchParams.email}
+        token={searchParams.token}
+      />
     </Suspense>
   )
 }

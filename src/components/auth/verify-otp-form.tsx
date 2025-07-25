@@ -54,9 +54,8 @@ export function VerifyOtpForm({ email }: { email: string }) {
         title: "Success",
         description: "OTP verified! You can now reset your password.",
       });
-      // On success, redirect to the password reset page.
-      // A secure session is now active, allowing password update.
-      router.push('/reset-password');
+      // On success, redirect to the password reset page with the temporary token.
+      router.push(`/reset-password?email=${encodeURIComponent(email)}&token=${result.sessionToken}`);
     }
     setIsSubmitting(false);
   }
