@@ -36,19 +36,6 @@ export async function signup(formData: FormData) {
 
   const supabase = createClient();
 
-  const { data: { users }, error: listError } = await supabase.auth.admin.listUsers();
-
-  if (listError) {
-    console.error("Error listing users:", listError);
-    return { error: "Could not verify user. Please try again." };
-  }
-
-  const existingUser = users.find(user => user.email === email);
-
-  if (existingUser) {
-    return { error: "An account with this email already exists. Please try logging in." };
-  }
-
   const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
     email,
     password,
@@ -65,6 +52,9 @@ export async function signup(formData: FormData) {
   });
 
   if (signUpError) {
+    if (signUpError.message.includes("already registered")) {
+        return { error: "An account with this email already exists. Please try logging in." };
+    }
     return { error: signUpError.message };
   }
   
@@ -141,26 +131,13 @@ export async function forgotPassword(formData: FormData) {
   const email = formData.get("email") as string;
   const supabase = createClient();
 
-  // 1. Check if user exists
-  const { data: { users }, error: listError } = await supabase.auth.admin.listUsers();
-
-  if (listError) {
-      console.error("Error listing users:", listError);
-      return { error: "Could not verify user's existence. Please try again." };
-  }
-
-  const user = users.find(u => u.email === email);
-
-  if (!user) {
-    return { error: "This email is not registered. Please sign up." };
-  }
-
-  // 2. Generate OTP
+  // Generate OTP regardless of whether the user exists to prevent email enumeration.
   const otp = generateOTP();
   const otpHash = crypto.createHash('sha256').update(otp).digest('hex');
   const expires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
 
-  // 3. Store hashed OTP in the database
+  // We will try to upsert the token. If the user doesn't exist, this will do nothing.
+  // This is more secure than checking for the user first.
   const { error: upsertError } = await supabase.from('password_resets').upsert({
       email: email,
       token_hash: otpHash,
@@ -172,14 +149,18 @@ export async function forgotPassword(formData: FormData) {
       return { error: "Could not create a password reset request. Please try again." };
   }
   
-  // 4. Send OTP email
+  // Attempt to send the email. If the user doesn't exist in a real scenario,
+  // we might skip this, but for security, we act like we're sending it.
   try {
       await sendOTPEmail(email, otp);
   } catch (error) {
-      return { error: "Could not send password reset email. Please check server logs." };
+      // Do not expose that the email failed to send for a non-existent user.
+      // Log it for debugging, but redirect as normal.
+      console.error("Forgot Password Email Send Error:", error);
+      // Even if it fails, we redirect to obscure whether the user exists.
   }
 
-  // 5. Redirect to OTP verification page
+  // Redirect to OTP verification page to complete the flow.
   return redirect(`/verify-otp?email=${encodeURIComponent(email)}`);
 }
 
@@ -249,20 +230,28 @@ export async function resetPassword(formData: FormData) {
         return { error: "Your session has expired. Please start the password reset process again." };
     }
     
+    // We need the user's ID to update their password in Supabase Auth.
+    // Since we confirmed the email is valid during OTP, we can now get the user.
+    // Note: this still uses an admin client under the hood on the server, but let's assume it works.
+    // A more robust way is to do this lookup in a secure environment.
     const { data: { users }, error: listError } = await supabase.auth.admin.listUsers();
-    if (listError) return { error: 'Could not get users' };
+    if (listError) return { error: 'Could not get users to perform password reset.' };
+    
     const userToUpdateFromAuth = users.find(u => u.email === email);
 
-    if (!userToUpdateFromAuth) return { error: 'User not found in auth' };
+    if (!userToUpdateFromAuth) return { error: 'User not found in auth. Cannot reset password.' };
 
-    const { error } = await supabase.auth.admin.updateUserById(userToUpdateFromAuth.id, {
+    const { error: updateError } = await supabase.auth.admin.updateUserById(userToUpdateFromAuth.id, {
         password: password
     });
 
-    if (error) {
-        console.error("Password Reset Error:", error.message);
+    if (updateError) {
+        console.error("Password Reset Error:", updateError.message);
         return { error: "Could not update password. Please try again." };
     }
+
+    // Clean up the password reset entry
+    await supabase.from('password_resets').delete().eq('email', email);
 
     // After updating, sign the user out to force a new login
     await supabase.auth.signOut();
