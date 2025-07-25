@@ -17,6 +17,7 @@ import { forgotPassword } from "@/app/auth/actions";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
@@ -24,6 +25,7 @@ const formSchema = z.object({
 
 export function ForgotPasswordForm() {
   const { toast } = useToast();
+  const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -35,6 +37,13 @@ export function ForgotPasswordForm() {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true);
+    
+    try {
+      localStorage.setItem('reset_email', values.email);
+    } catch (e) {
+      // Local storage might be disabled
+    }
+
     const formData = new FormData();
     formData.append("email", values.email);
 

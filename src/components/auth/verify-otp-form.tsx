@@ -15,18 +15,36 @@ import {
 import { Input } from "@/components/ui/input";
 import { verifyOtp } from "@/app/auth/actions";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 const formSchema = z.object({
   otp: z.string().min(6, { message: "Your one-time password must be 6 characters." }),
 });
 
-export function VerifyOtpForm({ email }: { email: string }) {
+export function VerifyOtpForm({ email: emailFromProps }: { email: string }) {
   const { toast } = useToast();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [email, setEmail] = useState(emailFromProps);
+
+  useEffect(() => {
+    // Fallback to localStorage if prop/param is not available on mount
+    if (!email) {
+      const storedEmail = localStorage.getItem("reset_email");
+      if (storedEmail) {
+        setEmail(storedEmail);
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Could not find email for verification. Please start over.",
+        });
+        router.push("/forgot-password");
+      }
+    }
+  }, [email, router, toast]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -36,6 +54,14 @@ export function VerifyOtpForm({ email }: { email: string }) {
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
+    if (!email) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Email is missing. Please start the process again.",
+      });
+      return;
+    }
     setIsSubmitting(true);
     const formData = new FormData();
     formData.append("email", email);
@@ -49,13 +75,8 @@ export function VerifyOtpForm({ email }: { email: string }) {
         title: "Error",
         description: result.error,
       });
-    } else if (result?.success) {
-      toast({
-        title: "Success",
-        description: "OTP verified! You can now reset your password.",
-      });
-      // On success, redirect to the password reset page with the temporary token.
-      router.push(`/reset-password?email=${encodeURIComponent(email)}&token=${result.sessionToken}`);
+    } else {
+       // On success, the action redirects.
     }
     setIsSubmitting(false);
   }
@@ -82,7 +103,7 @@ export function VerifyOtpForm({ email }: { email: string }) {
             </FormItem>
           )}
         />
-        <Button type="submit" className="w-full" disabled={isSubmitting}>
+        <Button type="submit" className="w-full" disabled={isSubmitting || !email}>
           {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Verify Code
         </Button>
