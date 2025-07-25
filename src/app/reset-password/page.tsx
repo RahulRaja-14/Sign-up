@@ -12,7 +12,6 @@ import { Terminal } from "lucide-react";
 import { Suspense } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
 
 async function ResetPasswordContent({ message, error }: { message?: string, error?: string }) {
     const supabase = createClient();
@@ -20,18 +19,16 @@ async function ResetPasswordContent({ message, error }: { message?: string, erro
     const { data: { session } } = await supabase.auth.getSession();
 
     if (!session) {
-      // This can happen if the user tries to access this page directly
-      // or if the recovery link has expired or is invalid.
       return (
          <main className="flex min-h-screen flex-col items-center justify-center p-4">
             <Card className="w-full max-w-md">
                 <CardHeader>
-                    <CardTitle>Invalid or Expired Link</CardTitle>
-                    <CardDescription>The password reset link is invalid or has expired. Please request a new one.</CardDescription>
+                    <CardTitle>Invalid or Expired Session</CardTitle>
+                    <CardDescription>Your session is invalid or has expired. Please start the password reset process again.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <Link href="/forgot-password">
-                        <span className="text-primary hover:underline">Request a new link</span>
+                        <span className="text-primary hover:underline">Request a new OTP</span>
                     </Link>
                 </CardContent>
             </Card>

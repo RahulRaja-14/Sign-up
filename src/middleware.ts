@@ -61,7 +61,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Public routes that do not require authentication
-  const publicRoutes = ['/login', '/signup', '/auth/callback', '/forgot-password'];
+  const publicRoutes = ['/login', '/signup', '/auth/callback', '/forgot-password', '/verify-otp'];
   // Protected routes that require authentication
   const protectedRoutes = ['/dashboard', '/profile'];
   // Routes that require a session but are part of an auth flow
@@ -90,7 +90,7 @@ export async function middleware(request: NextRequest) {
   // The /reset-password page should only be accessible if there is an active session
   // which is granted after clicking the recovery link.
   if (!session && isAuthFlowRoute) {
-    return NextResponse.redirect(new URL('/forgot-password?error=Invalid or expired link', request.url));
+    return NextResponse.redirect(new URL('/forgot-password?error=Invalid session. Please start the password reset process again.', request.url));
   }
 
   return response;

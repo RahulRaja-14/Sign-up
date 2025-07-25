@@ -1,19 +1,37 @@
--- In your Supabase project's SQL Editor, run the following query to create the table.
+-- Drop table if it exists to ensure a clean slate
+DROP TABLE IF EXISTS public.password_resets;
 
+-- Create the password_resets table
 CREATE TABLE public.password_resets (
-  email TEXT PRIMARY KEY,
-  token_hash TEXT NOT NULL,
-  expires_at TIMESTAMPTZ NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-  session_token TEXT,
-  session_expires_at TIMESTAMPTZ
+    email text NOT NULL,
+    token text NOT NULL,
+    expires_at timestamptz NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now()
 );
 
--- Optional: Add a policy to allow public access for upserting, but secure it properly.
--- For this demo, we'll keep it simple, but in production, you'd want row-level security.
+-- Add a primary key to the table on the email column
+-- This ensures that only one active token can exist per email.
+-- When a new request comes in, the old one will be overwritten (due to upsert).
+ALTER TABLE public.password_resets 
+ADD CONSTRAINT password_resets_pkey PRIMARY KEY (email);
 
+-- Optional: Create an index on the expires_at column for faster cleanup of old tokens
+CREATE INDEX password_resets_expires_at_idx ON public.password_resets(expires_at);
+
+-- Enable Row Level Security (RLS) on the table
 ALTER TABLE public.password_resets ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Allow public insert" ON public.password_resets FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow public select" ON public.password_resets FOR SELECT USING (true);
-CREATE POLICY "Allow public update" ON public.password_resets FOR UPDATE USING (true);
+-- Create policies for the table
+-- This table should not be accessible from the client-side at all.
+-- These policies effectively deny all access, as all operations will be performed
+-- using the service_role key from secure server-side actions.
+CREATE POLICY "Deny all access"
+ON public.password_resets
+FOR ALL
+USING (false)
+WITH CHECK (false);
+
+-- Informational comment for the developer
+-- The table is now created. RLS is enabled and policies are set to deny all
+-- client-side access. All interactions with this table must happen from
+-- the server-side using the Supabase service role key.

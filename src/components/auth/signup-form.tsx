@@ -22,7 +22,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { redirect } from "next/navigation";
+import { useRouter } from "next/navigation";
+
 
 const phoneRegex = new RegExp(
   /^([+]?[\s0-9]+)?(\d{3}|[(]?[0-9]+[)])?([-]?[\s]?[0-9])+$/
@@ -52,6 +53,7 @@ export function SignUpForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const router = useRouter();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -98,7 +100,9 @@ export function SignUpForm() {
         description: result.error,
       });
       setIsSubmitting(false);
-    } 
+    } else if (result?.success) {
+        router.push(`/login?message=${result.message}`);
+    }
   }
 
   return (
