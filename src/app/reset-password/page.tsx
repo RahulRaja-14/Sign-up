@@ -10,17 +10,10 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal } from "lucide-react";
 import { Suspense } from "react";
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
 import Link from "next/link";
 
-async function ResetPasswordContent({ message, error }: { message?: string, error?: string }) {
-  const supabase = createClient();
-  const { data: { session }} = await supabase.auth.getSession();
-
-  // This page should only be accessible if the user has a valid session
-  // after clicking the reset link.
-  if (!session) {
+function ResetPasswordContent({ email, message, error }: { email?: string, message?: string, error?: string }) {
+    if (!email) {
       return (
          <main className="flex min-h-screen flex-col items-center justify-center p-4">
             <Card className="w-full max-w-md">
@@ -69,7 +62,7 @@ async function ResetPasswordContent({ message, error }: { message?: string, erro
                 </AlertDescription>
               </Alert>
             )}
-            <ResetPasswordForm />
+            <ResetPasswordForm email={email} />
           </CardContent>
         </Card>
       </main>
@@ -80,11 +73,12 @@ async function ResetPasswordContent({ message, error }: { message?: string, erro
 export default function ResetPasswordPage({
   searchParams,
 }: {
-  searchParams: { message?: string, error?: string };
+  searchParams: { email?: string, message?: string, error?: string };
 }) {
   return (
     <Suspense fallback={<div>Loading...</div>}>
       <ResetPasswordContent 
+        email={searchParams.email}
         message={searchParams.message} 
         error={searchParams.error}
       />

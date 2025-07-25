@@ -43,7 +43,7 @@ const passwordValidation = [
     { rule: /[^a-zA-Z0-9]/, text: "At least one special character" },
 ];
 
-export function ResetPasswordForm() {
+export function ResetPasswordForm({ email }: { email: string }) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -61,6 +61,7 @@ export function ResetPasswordForm() {
     setIsSubmitting(true);
     const formData = new FormData();
     formData.append("password", values.password);
+    formData.append("email", email);
 
     // The server action handles redirecting on success or passing an error in the URL
     await resetPassword(formData);
