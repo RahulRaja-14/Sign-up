@@ -68,10 +68,13 @@ export async function signup(formData: FormData) {
     });
     
     if (insertError) {
+        // Important: If creating the user profile fails, delete the auth user
+        // to prevent having an auth user without a profile.
         await supabase.auth.admin.deleteUser(signUpData.user.id);
         return { error: "Could not create user profile. Please try again." };
     }
       
+    // Redirect to a confirmation page or login page with a message
     return redirect(`/login?message=Account created. Please check your email to confirm your account and sign in.`);
   }
 
@@ -86,18 +89,27 @@ export async function logout() {
 }
 
 async function sendOtpByEmail(email: string, otp: string) {
+    // This function requires GMAIL_EMAIL and GMAIL_APP_PASSWORD to be set in .env
+    const fromEmail = process.env.GMAIL_EMAIL;
+    const appPassword = process.env.GMAIL_APP_PASSWORD;
+
+    if (!fromEmail || !appPassword) {
+        console.error("Gmail credentials are not set in environment variables.");
+        return { error: "Email service is not configured." };
+    }
+
     const transporter = nodemailer.createTransport({
         host: "smtp.gmail.com",
         port: 465,
         secure: true,
         auth: {
-            user: process.env.GMAIL_EMAIL,
-            pass: process.env.GMAIL_APP_PASSWORD,
+            user: fromEmail,
+            pass: appPassword,
         },
     });
 
     const mailOptions = {
-        from: `"Plamento OTP Service" <${process.env.GMAIL_EMAIL}>`,
+        from: `"Plamento OTP Service" <${fromEmail}>`,
         to: email,
         subject: "Your OTP Code from Plamento",
         text: `Hello,\n\nYour OTP is: ${otp}\n\nThanks,\nPlamento Team`,
@@ -118,14 +130,18 @@ export async function forgotPassword(formData: FormData) {
   const email = formData.get("email") as string;
   const supabase = createClient();
 
-  // 1. Check if user exists by querying user_details table
-  const { data: user, error: userError } = await supabase
-    .from('user_details')
-    .select('id, email')
-    .eq('email', email)
-    .single();
+  // 1. Check if user exists using the admin client.
+  // This is the correct way to check for a user's existence from the server-side.
+  const { data: { users }, error: listError } = await supabase.auth.admin.listUsers();
+  
+  if (listError) {
+      console.error("Error listing users:", listError);
+      return { error: "Could not verify user's existence. Please try again." };
+  }
 
-  if (userError || !user) {
+  const user = users.find(u => u.email === email);
+  
+  if (!user) {
     return { error: "This email is not registered. Please sign up." };
   }
 
@@ -159,20 +175,16 @@ export async function verifyOtp(formData: FormData) {
   const otp = formData.get("otp") as string;
   const supabase = createClient();
 
-  const { data: { user } , error: userError } = await supabase.auth.getUser();
-
-  // This check is tricky because the user isn't logged in. We need to find the user by email.
-  // The most secure way is to get the user by email without exposing if they exist.
-  // But since we checked on the previous step, we'll proceed with a lookup.
-  const { data: userToVerify, error: findError } = await supabase.from('user_details').select('id').eq('email', email).single();
-  if (findError || !userToVerify) {
-      return { error: "Could not find user to verify. Please try the process again."}
+  // We need to find the user by email to check their metadata.
+  const { data: { users }, error: listError } = await supabase.auth.admin.listUsers();
+  if (listError) {
+      console.error("Error listing users:", listError);
+      return { error: "Could not verify user. Please try again." };
   }
-
-  const { data: { user: targetUser } } = await supabase.auth.admin.getUserById(userToVerify.id);
+  const targetUser = users.find(u => u.email === email);
 
   if(!targetUser) {
-      return { error: "Could not verify user. Please try again." };
+      return { error: "Could not find user to verify. Please try the process again." };
   }
   
   const storedOtp = targetUser.user_metadata?.otp;
@@ -192,13 +204,11 @@ export async function verifyOtp(formData: FormData) {
     return { error: "Invalid OTP. Please check the code and try again." };
   }
   
-  // OTP is correct. Clear it and redirect to reset password page.
-  // We need to create a temporary session or pass a secure token, but for now we'll just redirect.
-  // A better implementation would use a session.
+  // OTP is correct. Clear it and prepare for password reset.
   await supabase.auth.admin.updateUserById(targetUser.id, { user_metadata: { otp: null, otp_expires_at: null } });
 
   // For simplicity, we'll pass the email to the reset page.
-  // A real-world app should use a more secure method like a short-lived session.
+  // In a real-world app, a more secure method like a short-lived session token would be better.
   return redirect(`/reset-password?email=${encodeURIComponent(email)}`);
 }
 
@@ -208,11 +218,14 @@ export async function resetPassword(formData: FormData) {
     const email = formData.get("email") as string;
     const supabase = createClient();
     
-    // We need the user's ID to update their password this way.
-    // This flow is not ideal without a session. The user must be logged in to update their password.
-    // Let's find the user by email again.
-    const { data: userToUpdate, error: findError } = await supabase.from('user_details').select('id').eq('email', email).single();
-    if (findError || !userToUpdate) {
+    // Find the user by email again to get their ID.
+    const { data: { users }, error: listError } = await supabase.auth.admin.listUsers();
+    if (listError) {
+        return redirect(`/login?error=Could not find user to update password.`);
+    }
+    const userToUpdate = users.find(u => u.email === email);
+
+    if (!userToUpdate) {
         return redirect(`/login?error=Could not find user to update password.`);
     }
 
