@@ -74,24 +74,6 @@ export async function signup(formData: FormData) {
   const supabase = createClient();
   const origin = headers().get("origin");
 
-  // Check if user already exists
-  const { data: existingUser, error: existingUserError } = await supabase
-    .from("user_details")
-    .select("id")
-    .eq("email", email)
-    .single();
-
-  if (existingUserError && existingUserError.code !== "PGRST116") {
-    // PGRST116 means no rows found, which is what we want.
-    // Any other error is an actual problem.
-    console.error("Error checking for existing user:", existingUserError);
-    return { error: "Could not check for existing user. Please try again." };
-  }
-
-  if (existingUser) {
-    return { error: "This email is already registered. Please sign in." };
-  }
-
   const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
     email,
     password,
@@ -154,10 +136,7 @@ export async function forgotPassword(formData: FormData) {
     .single();
 
   if (userError || !user) {
-    // Security: Don't reveal if the email exists.
-    // We just won't send an email, but the UI will act the same.
-    console.log(`Password reset attempt for non-existent email: ${email}`);
-    return redirect(`/verify-otp?email=${encodeURIComponent(email)}`);
+    return { error: "This email is not registered. Please sign up." };
   }
 
   // 2. Generate OTP and expiration
@@ -207,36 +186,35 @@ export async function verifyOtp(formData: FormData) {
   }
 
   if (new Date(data.expires_at) < new Date()) {
+    await supabase.from("password_resets").delete().eq("email", email);
     return { error: "OTP has expired. Please request a new one." };
   }
 
-  // OTP is correct. Grant a temporary session to allow password reset.
-  const { error: exchangeError } =
-    await supabase.auth.signInWithPassword({ email, password: otp }); // This is a trick to get a temporary session
+  // OTP is correct and not expired. We need to grant a temporary session.
+  // The official Supabase way for this is to use `verifyOtp` with type 'recovery'
+  // but that sends an email. So we create a session manually with a trick.
+  const { data: { user } } = await supabase.auth.admin.getUserByEmail(email);
 
-  const { error: signInOtpError } = await supabase.auth.signInWithOtp({
-    email,
-    token: otp,
-    type: "email",
+  if (!user) {
+    return { error: "Could not find user to start password reset session." };
+  }
+  
+  // This function creates a temporary session for the user to update their password
+  const { data: sessionData, error: sessionError } = await supabase.auth.admin.generateLink({
+      type: 'magiclink',
+      email: email,
   });
 
-  if (signInOtpError) {
-    console.error("Error signing in with OTP:", signInOtpError);
-    // This is a server error, try to create a session manually
-    const { data: userResp } = await supabase
-      .from("user_details")
-      .select("id")
-      .eq("email", email)
-      .single();
-    if (userResp) {
-      await supabase.auth.setSession({
-        access_token: "dummy", // This will be invalid but might be enough
-        refresh_token: "dummy",
-      });
-    } else {
-      return { error: "Could not start password reset session." };
-    }
+  if(sessionError || !sessionData.properties?.access_token) {
+    console.error("Could not generate magic link for session", sessionError)
+    return { error: "Could not start password reset session." };
   }
+  
+  await supabase.auth.setSession({
+      access_token: sessionData.properties.access_token,
+      refresh_token: sessionData.properties.refresh_token,
+  });
+
 
   // Delete the OTP record so it can't be reused
   await supabase.from("password_resets").delete().eq("email", email);
