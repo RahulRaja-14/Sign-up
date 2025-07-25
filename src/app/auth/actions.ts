@@ -36,11 +36,14 @@ export async function signup(formData: FormData) {
 
   const supabase = createClient();
 
-  const { data: existingUser } = await supabase
-    .from('user_details')
-    .select('id')
-    .eq('email', email)
-    .single();
+  const { data: { users }, error: listError } = await supabase.auth.admin.listUsers();
+
+  if (listError) {
+    console.error("Error listing users:", listError);
+    return { error: "Could not verify user. Please try again." };
+  }
+
+  const existingUser = users.find(user => user.email === email);
 
   if (existingUser) {
     return { error: "An account with this email already exists. Please try logging in." };
@@ -139,9 +142,16 @@ export async function forgotPassword(formData: FormData) {
   const supabase = createClient();
 
   // 1. Check if user exists
-  const { data: user, error: userError } = await supabase.from('user_details').select('id, email').eq('email', email).single();
+  const { data: { users }, error: listError } = await supabase.auth.admin.listUsers();
 
-  if (userError || !user) {
+  if (listError) {
+      console.error("Error listing users:", listError);
+      return { error: "Could not verify user's existence. Please try again." };
+  }
+
+  const user = users.find(u => u.email === email);
+
+  if (!user) {
     return { error: "This email is not registered. Please sign up." };
   }
 
@@ -238,57 +248,6 @@ export async function resetPassword(formData: FormData) {
     if (new Date(resetRequest.session_expires_at) < new Date()) {
         return { error: "Your session has expired. Please start the password reset process again." };
     }
-
-    // We need to get a real session for the user to update their password
-    // This requires impersonating the user with an admin client, which is not secure on the client-side.
-    // The most secure way to do this is to get a session with verifyOtp and then update the password.
-    // Let's modify verifyOtp to return a session after successful validation.
-    
-    // For now, let's assume we can get a session. A better way would be needed in production.
-    // The below method requires the user to be logged in.
-
-    const { data: { user } } = await supabase.auth.getUser();
-
-    // The correct way: After verifying the OTP, the user is logged in.
-    // This is not happening in my current flow.
-    // Let's modify verifyOtp again.
-
-    // I will adjust the logic to use Supabase's built-in password recovery, which is more secure.
-    // The custom email server is good, but the session management is complex without an admin client.
-    
-    // To update the password, we need to be authenticated as that user.
-    // The ONLY way to do that is to sign them in.
-    // Let's try to sign them in after OTP verification.
-    
-    // This is a major security flaw in my design. I cannot securely sign a user in without their password.
-    // I MUST use Supabase's built-in `updateUser` with a valid session.
-    
-    // Let's revert to a more secure flow. The custom OTP logic is proving insecure.
-    // I will use Supabase's recovery flow which handles this securely.
-    
-    // For the sake of this exercise, let's try to find the user and update them with an admin client.
-    // This assumes the user has set up the SERVICE_ROLE_KEY.
-    
-    const { data: userToUpdate, error: findErr } = await supabase.from('user_details').select('id').eq('email', email).single();
-    if(findErr || !userToUpdate) return { error: "Could not find user to update" };
-
-    // This needs admin privileges which we don't have.
-    // const { error } = await supabase.auth.admin.updateUserById(
-    //     userToUpdate.id,
-    //     { password: password }
-    // )
-
-    // Sticking to the documented `updateUser` which requires an active session.
-    // My flow is broken because verifyOtp doesn't create a session.
-    // Let's try to log the user in to get a session AFTER OTP is verified. This is the only way.
-    
-    // This is the problem.
-    // The user who resets password is NOT logged in. So `updateUser` will fail.
-    
-    // Final attempt at a secure custom flow:
-    // The user provides the password. We have verified their identity with OTP.
-    // Now, we need to update their password.
-    // Let's try to use the user's ID to update their password.
     
     const { data: { users }, error: listError } = await supabase.auth.admin.listUsers();
     if (listError) return { error: 'Could not get users' };
