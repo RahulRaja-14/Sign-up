@@ -130,8 +130,6 @@ export async function forgotPassword(formData: FormData) {
   const email = formData.get("email") as string;
   const supabase = createClient();
 
-  // 1. Check if user exists using the admin client.
-  // This is the correct way to check for a user's existence from the server-side.
   const { data: { users }, error: listError } = await supabase.auth.admin.listUsers();
   
   if (listError) {
@@ -142,14 +140,14 @@ export async function forgotPassword(formData: FormData) {
   const user = users.find(u => u.email === email);
   
   if (!user) {
-    return { error: "This email is not registered. Please sign up." };
+    // To prevent email enumeration, we don't reveal that the user does not exist.
+    // We'll simply redirect as if an email was sent. The user just won't receive one.
+    return redirect(`/verify-otp?email=${encodeURIComponent(email)}`);
   }
 
-  // 2. Generate OTP and expiry
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
   const otp_expires_at = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
 
-  // 3. Store OTP and expiry in the user's metadata in auth.users
   const { error: updateError } = await supabase.auth.admin.updateUserById(
     user.id,
     { user_metadata: { otp, otp_expires_at: otp_expires_at.toISOString() } }
@@ -160,22 +158,20 @@ export async function forgotPassword(formData: FormData) {
     return { error: "Could not create a password reset request. Please try again." };
   }
   
-  // 4. Send email with Nodemailer
   const emailResult = await sendOtpByEmail(email, otp);
   if (emailResult.error) {
     return { error: emailResult.error };
   }
   
-  // 5. Redirect to OTP verification page
   return redirect(`/verify-otp?email=${encodeURIComponent(email)}`);
 }
+
 
 export async function verifyOtp(formData: FormData) {
   const email = formData.get("email") as string;
   const otp = formData.get("otp") as string;
   const supabase = createClient();
 
-  // We need to find the user by email to check their metadata.
   const { data: { users }, error: listError } = await supabase.auth.admin.listUsers();
   if (listError) {
       console.error("Error listing users:", listError);
@@ -195,7 +191,6 @@ export async function verifyOtp(formData: FormData) {
   }
 
   if (new Date() > expiry) {
-    // Clear expired OTP
     await supabase.auth.admin.updateUserById(targetUser.id, { user_metadata: { otp: null, otp_expires_at: null } });
     return { error: "Your OTP has expired. Please request a new one." };
   }
@@ -204,11 +199,8 @@ export async function verifyOtp(formData: FormData) {
     return { error: "Invalid OTP. Please check the code and try again." };
   }
   
-  // OTP is correct. Clear it and prepare for password reset.
   await supabase.auth.admin.updateUserById(targetUser.id, { user_metadata: { otp: null, otp_expires_at: null } });
 
-  // For simplicity, we'll pass the email to the reset page.
-  // In a real-world app, a more secure method like a short-lived session token would be better.
   return redirect(`/reset-password?email=${encodeURIComponent(email)}`);
 }
 
@@ -218,7 +210,6 @@ export async function resetPassword(formData: FormData) {
     const email = formData.get("email") as string;
     const supabase = createClient();
     
-    // Find the user by email again to get their ID.
     const { data: { users }, error: listError } = await supabase.auth.admin.listUsers();
     if (listError) {
         return redirect(`/login?error=Could not find user to update password.`);
