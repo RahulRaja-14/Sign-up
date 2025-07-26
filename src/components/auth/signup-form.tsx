@@ -1,9 +1,14 @@
 "use client";
 
+import { useState } from "react";
+import { useFormStatus } from "react-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { Button } from "@/components/ui/button";
+import * as z from "zod";
+import { signup } from "@/app/auth/actions";
+import { useToast } from "@/hooks/use-toast";
+import { Eye, EyeOff } from "lucide-react";
+
 import {
   Form,
   FormControl,
@@ -13,47 +18,45 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { signup } from "@/app/auth/actions";
-import { useToast } from "@/hooks/use-toast";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
-import { CalendarIcon, Eye, EyeOff, Loader2 } from "lucide-react";
-import { Calendar } from "@/components/ui/calendar";
-import { format } from "date-fns";
-import { useState } from "react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
 
-
-const phoneRegex = new RegExp(
-  /^([+]?[\s0-9]+)?(\d{3}|[(]?[0-9]+[)])?([-]?[\s]?[0-9])+$/
-);
-
-const formSchema = z.object({
-  firstName: z.string().min(1, { message: "First name is required." }),
-  lastName: z.string().min(1, { message: "Last name is required." }),
-  email: z.string().email({ message: "Invalid email address." }),
-  countryCode: z.string().min(1, { message: "Country code is required." }),
-  phone: z.string().regex(phoneRegex, 'Invalid Number!'),
-  dob: z.date({ required_error: "Date of birth is required." }),
-  password: z.string()
-    .min(8, { message: "Password must be at least 8 characters long." })
-    .regex(/[a-z]/, { message: "Password must contain at least one lowercase letter." })
-    .regex(/[A-Z]/, { message: "Password must contain at least one uppercase letter." })
-    .regex(/[0-9]/, { message: "Password must contain at least one number." })
-    .regex(/[^a-zA-Z0-9]/, { message: "Password must contain at least one special character." }),
-  confirmPassword: z.string()
-}).refine(data => data.password === data.confirmPassword, {
+const formSchema = z
+  .object({
+    firstName: z.string().min(2, { message: "First name must be at least 2 characters." }),
+    lastName: z.string().min(2, { message: "Last name must be at least 2 characters." }),
+    email: z.string().email({ message: "Please enter a valid email address." }),
+    phone: z.string().min(10, { message: "Phone number must be at least 10 digits." }),
+    dob: z.string().refine((dob) => new Date(dob).toString() !== "Invalid Date", {
+      message: "Please enter a valid date of birth.",
+    }),
+    password: z
+      .string()
+      .min(8, { message: "Password must be at least 8 characters long." })
+      .regex(/[A-Z]/, { message: "Password must contain at least one uppercase letter." })
+      .regex(/[a-z]/, { message: "Password must contain at least one lowercase letter." })
+      .regex(/[0-9]/, { message: "Password must contain at least one number." })
+      .regex(/[^A-Za-z0-9]/, { message: "Password must contain at least one special character." }),
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match.",
-    path: ['confirmPassword']
-});
+    path: ["confirmPassword"],
+  });
 
-export function SignUpForm() {
+function SubmitButton() {
+  const { pending } = useFormStatus();
+
+  return (
+    <Button type="submit" className="w-full" disabled={pending}>
+      {pending ? "Creating Account..." : "Create Account"}
+    </Button>
+  );
+}
+
+export function SignupForm() {
   const { toast } = useToast();
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const router = useRouter();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -61,172 +64,103 @@ export function SignUpForm() {
       firstName: "",
       lastName: "",
       email: "",
-      countryCode: "+1",
       phone: "",
+      dob: "",
       password: "",
-      confirmPassword: ""
+      confirmPassword: "",
     },
   });
 
-  const passwordValidation = [
-      { rule: /.{8,}/, text: "Minimum 8 characters" },
-      { rule: /[A-Z]/, text: "At least one uppercase letter" },
-      { rule: /[a-z]/, text: "At least one lowercase letter" },
-      { rule: /[0-9]/, text: "At least one number" },
-      { rule: /[^a-zA-Z0-9]/, text: "At least one special character" },
-  ];
-
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    setIsSubmitting(true);
     const formData = new FormData();
-    Object.entries(values).forEach(([key, value]) => {
-      if (value instanceof Date) {
-        formData.append(key, value.toISOString().split('T')[0]);
-      } else if (key === 'phone' || key === 'countryCode') {
-        if (key === 'phone') {
-            formData.append('phone', `${values.countryCode} ${values.phone}`)
-        }
-      } else if (key !== 'confirmPassword') {
-        formData.append(key, value);
-      }
+    Object.keys(values).forEach(key => {
+        formData.append(key, values[key as keyof typeof values]);
     });
 
     const result = await signup(formData);
 
     if (result?.error) {
       toast({
-        variant: "destructive",
         title: "Sign Up Failed",
-        description: result.error,
+        description: <p>{result.error}</p>,
+        variant: "destructive",
       });
-      setIsSubmitting(false);
-    } else if (result?.success) {
-        router.push(`/login?message=${result.message}`);
     }
   }
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="firstName"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>First Name</FormLabel>
-                <FormControl>
-                  <Input placeholder="John" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="lastName"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Last Name</FormLabel>
-                <FormControl>
-                  <Input placeholder="Doe" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
+      <form
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="grid grid-cols-2 gap-4"
+        noValidate
+      >
         <FormField
           control={form.control}
-          name="email"
+          name="firstName"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Email</FormLabel>
+              <FormLabel>First Name</FormLabel>
               <FormControl>
-                <Input placeholder="name@example.com" {...field} />
+                <Input placeholder="John" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-        <FormItem>
-            <FormLabel>Phone Number</FormLabel>
-            <div className="flex gap-2">
-                <FormField
-                    control={form.control}
-                    name="countryCode"
-                    render={({ field }) => (
-                        <FormItem className="w-24">
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Code" />
-                                </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                    <SelectItem value="+1">+1 (USA)</SelectItem>
-                                    <SelectItem value="+44">+44 (UK)</SelectItem>
-                                    <SelectItem value="+91">+91 (India)</SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                    />
-                <FormField
-                    control={form.control}
-                    name="phone"
-                    render={({ field }) => (
-                    <FormItem className="flex-1">
-                        <FormControl>
-                        <Input placeholder="123 456 7890" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                    </FormItem>
-                    )}
+        <FormField
+          control={form.control}
+          name="lastName"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Last Name</FormLabel>
+              <FormControl>
+                <Input placeholder="Doe" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="email"
+          render={({ field }) => (
+            <FormItem className="col-span-2">
+              <FormLabel>Email</FormLabel>
+              <FormControl>
+                <Input
+                  type="email"
+                  placeholder="name@example.com"
+                  {...field}
+                  autoComplete="email"
                 />
-            </div>
-        </FormItem>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="phone"
+          render={({ field }) => (
+            <FormItem className="col-span-2">
+              <FormLabel>Phone</FormLabel>
+              <FormControl>
+                <Input placeholder="(123) 456-7890" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
         <FormField
           control={form.control}
           name="dob"
           render={({ field }) => (
-            <FormItem className="flex flex-col">
+            <FormItem className="col-span-2">
               <FormLabel>Date of Birth</FormLabel>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <FormControl>
-                      <Button
-                        variant={"outline"}
-                        className={cn(
-                          "pl-3 text-left font-normal",
-                          !field.value && "text-muted-foreground"
-                        )}
-                      >
-                        {field.value ? (
-                          format(field.value, "PPP")
-                        ) : (
-                          <span>Pick a date</span>
-                        )}
-                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                      </Button>
-                    </FormControl>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={field.value}
-                      onSelect={field.onChange}
-                      disabled={(date) =>
-                        date > new Date() || date < new Date("1900-01-01")
-                      }
-                      captionLayout="dropdown-buttons"
-                      fromYear={1900}
-                      toYear={new Date().getFullYear()}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
+              <FormControl>
+                <Input type="date" {...field} />
+              </FormControl>
               <FormMessage />
             </FormItem>
           )}
@@ -235,49 +169,57 @@ export function SignUpForm() {
           control={form.control}
           name="password"
           render={({ field }) => (
-            <FormItem>
+            <FormItem className="col-span-2">
               <FormLabel>Password</FormLabel>
               <FormControl>
-                 <div className="relative">
-                    <Input type={showPassword ? "text" : "password"} placeholder="••••••••" {...field} />
-                    <Button variant="ghost" size="icon" type="button" className="absolute top-0 right-0 h-full px-3" onClick={() => setShowPassword(!showPassword)}>
-                        {showPassword ? <EyeOff /> : <Eye />}
-                    </Button>
-                 </div>
+                <div className="relative">
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    {...field}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground"
+                  >
+                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
+                </div>
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-1 text-xs">
-            {passwordValidation.map(({ rule, text }) => (
-                <div key={text} className={cn("text-muted-foreground", { "text-primary": rule.test(form.watch("password")) })}>
-                    {text}
-                </div>
-            ))}
-        </div>
         <FormField
-            control={form.control}
-            name="confirmPassword"
-            render={({ field }) => (
-                <FormItem>
-                    <FormLabel>Confirm Password</FormLabel>
-                    <FormControl>
-                        <div className="relative">
-                            <Input type={showConfirmPassword ? "text" : "password"} placeholder="••••••••" {...field} />
-                            <Button variant="ghost" size="icon" type="button" className="absolute top-0 right-0 h-full px-3" onClick={() => setShowConfirmPassword(!showConfirmPassword)}>
-                                {showConfirmPassword ? <EyeOff /> : <Eye />}
-                            </Button>
-                        </div>
-                    </FormControl>
-                    <FormMessage />
-                </FormItem>
-            )}
+          control={form.control}
+          name="confirmPassword"
+          render={({ field }) => (
+            <FormItem className="col-span-2">
+              <FormLabel>Confirm Password</FormLabel>
+              <FormControl>
+                <div className="relative">
+                  <Input
+                    type={showConfirmPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    {...field}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground"
+                  >
+                    {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
+                </div>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-        <Button type="submit" className="w-full" disabled={isSubmitting}>
-          {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Sign Up
-        </Button>
+        <div className="col-span-2">
+          <SubmitButton />
+        </div>
       </form>
     </Form>
   );
