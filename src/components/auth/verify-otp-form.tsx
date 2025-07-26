@@ -1,9 +1,13 @@
 "use client";
 
+import { useFormStatus } from "react-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { Button } from "@/components/ui/button";
+import * as z from "zod";
+import { verifyOtp } from "@/app/auth/actions";
+import { useToast } from "@/hooks/use-toast";
+import { useSearchParams } from "next/navigation";
+
 import {
   Form,
   FormControl,
@@ -13,20 +17,24 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { verifyOtp } from "@/app/auth/actions";
-import { useToast } from "@/hooks/use-toast";
-import { useState, useEffect } from "react";
-import { Loader2 } from "lucide-react";
-import { useSearchParams } from "next/navigation";
+import { Button } from "@/components/ui/button";
 
 const formSchema = z.object({
-  otp: z.string().min(6, { message: "Your OTP must be 6 digits." }).max(6),
-  email: z.string().email(),
+  otp: z.string().length(6, { message: "Your OTP must be 6 digits." }),
 });
+
+function SubmitButton() {
+  const { pending } = useFormStatus();
+
+  return (
+    <Button type="submit" className="w-full" disabled={pending}>
+      {pending ? "Verifying..." : "Verify OTP"}
+    </Button>
+  );
+}
 
 export function VerifyOtpForm() {
   const { toast } = useToast();
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const searchParams = useSearchParams();
   const email = searchParams.get("email");
 
@@ -34,42 +42,34 @@ export function VerifyOtpForm() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       otp: "",
-      email: email || "",
     },
   });
-  
-  useEffect(() => {
-    if (email) {
-      form.setValue("email", email);
-    }
-  }, [email, form]);
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    setIsSubmitting(true);
-
     const formData = new FormData();
     formData.append("otp", values.otp);
-    formData.append("email", values.email);
+    if(email) formData.append("email", email);
 
     const result = await verifyOtp(formData);
 
     if (result?.error) {
       toast({
-        variant: "destructive",
         title: "Error",
-        description: result.error,
+        description: <p>{result.error}</p>,
+        variant: "destructive",
       });
+    } else if (result?.success && result.redirectUrl) {
+      window.location.href = result.redirectUrl;
     }
-    setIsSubmitting(false);
-  }
-  
-  if (!email) {
-    return <p className="text-center text-destructive">Email parameter is missing.</p>
   }
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <form
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="space-y-4"
+        noValidate
+      >
         <FormField
           control={form.control}
           name="otp"
@@ -77,21 +77,17 @@ export function VerifyOtpForm() {
             <FormItem>
               <FormLabel>One-Time Password</FormLabel>
               <FormControl>
-                <Input placeholder="123456" {...field} maxLength={6} />
+                <Input
+                  placeholder="Enter your 6-digit code"
+                  {...field}
+                  autoComplete="off"
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-        <FormField
-            control={form.control}
-            name="email"
-            render={({ field }) => <input type="hidden" {...field} />}
-        />
-        <Button type="submit" className="w-full" disabled={isSubmitting}>
-          {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Verify & Proceed
-        </Button>
+        <SubmitButton />
       </form>
     </Form>
   );

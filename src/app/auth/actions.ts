@@ -1,7 +1,6 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import nodemailer from "nodemailer";
 import crypto from "crypto";
@@ -9,6 +8,40 @@ import crypto from "crypto";
 // Helper function to generate a 6-digit OTP
 function generateOtp() {
   return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+async function sendWelcomeEmail(email: string, firstName: string) {
+    const transporter = nodemailer.createTransport({
+        host: "smtp.gmail.com",
+        port: 465,
+        secure: true,
+        auth: {
+            user: process.env.GMAIL_EMAIL,
+            pass: process.env.GMAIL_APP_PASSWORD,
+        },
+    });
+
+    const mailOptions = {
+        from: `"Plamento" <${process.env.GMAIL_EMAIL}>`,
+        to: email,
+        subject: "Welcome to Plamento!",
+        text: `Hi ${firstName},
+
+Welcome to Plamento! We're thrilled to have you on board.
+
+Enjoy the platform!
+
+Thanks,
+The Plamento Team`,
+        html: `<p>Hi ${firstName},</p><p>Welcome to Plamento! We're thrilled to have you on board.</p><p>Enjoy the platform!</p><p>Thanks,<br/>The Plamento Team</p>`,
+    };
+
+    try {
+        await transporter.sendMail(mailOptions);
+        console.log(`Welcome email sent to ${email}`);
+    } catch (error) {
+        console.error("Error sending welcome email:", error);
+    }
 }
 
 async function sendOtpByEmail(email: string, otp: string) {
@@ -26,7 +59,14 @@ async function sendOtpByEmail(email: string, otp: string) {
     from: `"Plamento OTP Service" <${process.env.GMAIL_EMAIL}>`,
     to: email,
     subject: "Your Plamento Password Reset Code",
-    text: `Hello,\n\nYour one-time password is: ${otp}\n\nThis code will expire in 10 minutes.\n\nThanks,\nPlamento Team`,
+    text: `Hello,
+
+Your one-time password is: ${otp}
+
+This code will expire in 10 minutes.
+
+Thanks,
+Plamento Team`,
     html: `<p>Hello,</p><p>Your one-time password is: <b>${otp}</b></p><p>This code will expire in 10 minutes.</p><p>Thanks,<br/>Plamento Team</p>`,
   };
 
@@ -35,7 +75,6 @@ async function sendOtpByEmail(email: string, otp: string) {
     console.log(`OTP email sent to ${email}`);
   } catch (error) {
     console.error("Error sending OTP email:", error);
-    // We don't want to expose detailed error messages to the client
     throw new Error("Could not send OTP email. Please try again later.");
   }
 }
@@ -51,12 +90,6 @@ export async function login(formData: FormData) {
   });
 
   if (error) {
-    if (error.message === "Email not confirmed") {
-      return {
-        error:
-          "Email not confirmed. Please check your inbox for a confirmation link.",
-      };
-    }
     return { error: "Invalid credentials. Please try again." };
   }
 
@@ -72,47 +105,38 @@ export async function signup(formData: FormData) {
   const dob = formData.get("dob") as string;
 
   const supabase = createClient();
-  const origin = headers().get("origin");
 
-  const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+  const { data: signUpData, error: signUpError } = await supabase.auth.admin.createUser({
     email,
     password,
-    options: {
-      emailRedirectTo: `${origin}/auth/callback`,
-      data: {
-        first_name: firstName,
-        last_name: lastName,
-        phone: phone,
-        dob: dob,
-        email: email,
-      },
-    },
-  });
-
-  if (signUpError) {
-    return { error: signUpError.message };
-  }
-
-  if (signUpData.user) {
-    const { error: insertError } = await supabase.from("user_details").insert({
-      id: signUpData.user.id,
+    email_confirm: true, 
+    user_metadata: {
       first_name: firstName,
       last_name: lastName,
       phone: phone,
       dob: dob,
-      email: email,
+    },
+  });
+
+  if (signUpError) {
+    console.error("Admin user creation error:", signUpError.message);
+    return { error: "A user with this email may already exist. Please try again." };
+  }
+
+  if (signUpData.user) {
+    await sendWelcomeEmail(email, firstName);
+
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
     });
 
-    if (insertError) {
-      await supabase.auth.admin.deleteUser(signUpData.user.id);
-      return { error: "Could not create user profile. Please try again." };
+    if (signInError) {
+        console.error("Sign in after signup failed:", signInError);
+        return { error: "Account created, but auto-login failed. Please try to log in." };
     }
 
-    return {
-      success: true,
-      message:
-        "Account created. Please check your email to confirm your account and sign in.",
-    };
+    return redirect("/dashboard");
   }
 
   return redirect(`/login?message=Something went wrong. Please try again.`);
@@ -128,7 +152,6 @@ export async function forgotPassword(formData: FormData) {
   const email = formData.get("email") as string;
   const supabase = createClient();
 
-  // 1. Check if the user exists
   const { data: user, error: userError } = await supabase
     .from("user_details")
     .select("id")
@@ -139,12 +162,10 @@ export async function forgotPassword(formData: FormData) {
     return { error: "This email is not registered. Please sign up." };
   }
 
-  // 2. Generate OTP and expiration
   const otp = generateOtp();
-  const expires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
+  const expires = new Date(Date.now() + 10 * 60 * 1000); 
   const hashedOtp = crypto.createHash("sha256").update(otp).digest("hex");
 
-  // 3. Store the hashed OTP
   const { error: upsertError } = await supabase.from("password_resets").upsert({
     email: email,
     token: hashedOtp,
@@ -156,7 +177,6 @@ export async function forgotPassword(formData: FormData) {
     return { error: "Could not create a password reset request. Please try again." };
   }
 
-  // 4. Send the email with the plain OTP
   try {
     await sendOtpByEmail(email, otp);
   } catch (error) {
@@ -189,65 +209,77 @@ export async function verifyOtp(formData: FormData) {
     await supabase.from("password_resets").delete().eq("email", email);
     return { error: "OTP has expired. Please request a new one." };
   }
-
-  // OTP is correct and not expired. We need to grant a temporary session.
-  // The official Supabase way for this is to use `verifyOtp` with type 'recovery'
-  // but that sends an email. So we create a session manually with a trick.
-  const { data: { user } } = await supabase.auth.admin.getUserByEmail(email);
-
-  if (!user) {
-    return { error: "Could not find user to start password reset session." };
-  }
   
-  // This function creates a temporary session for the user to update their password
-  const { data: sessionData, error: sessionError } = await supabase.auth.admin.generateLink({
-      type: 'magiclink',
-      email: email,
-  });
+  const resetToken = crypto.randomBytes(32).toString("hex");
+  const hashedResetToken = crypto.createHash("sha256").update(resetToken).digest("hex");
 
-  if(sessionError || !sessionData.properties?.access_token) {
-    console.error("Could not generate magic link for session", sessionError)
-    return { error: "Could not start password reset session." };
+  const { error: updateError } = await supabase
+    .from("password_resets")
+    .update({
+      token: hashedResetToken,
+      expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+    })
+    .eq("email", email);
+
+  if (updateError) {
+    return { error: "Could not initiate password reset. Please try again." };
   }
-  
-  await supabase.auth.setSession({
-      access_token: sessionData.properties.access_token,
-      refresh_token: sessionData.properties.refresh_token,
-  });
 
-
-  // Delete the OTP record so it can't be reused
-  await supabase.from("password_resets").delete().eq("email", email);
-
-  return redirect("/reset-password");
+  return { success: true, redirectUrl: `/reset-password?token=${resetToken}&email=${encodeURIComponent(email)}` };
 }
 
 export async function resetPassword(formData: FormData) {
-  const password = formData.get("password") as string;
-  const supabase = createClient();
+    const password = formData.get("password") as string;
+    const token = formData.get("token") as string;
+    const email = formData.get("email") as string;
+    const supabase = createClient();
 
-  // We need to ensure there is an active session from the OTP verification step
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  if (!session) {
-    return redirect(
-      `/login?error=Your session has expired. Please try resetting your password again.`
+    if (!password || !token || !email) {
+        return { error: "Invalid password reset request. Please try again." };
+    }
+
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+    const { data: tokenData, error: tokenError } = await supabase
+        .from("password_resets")
+        .select("*")
+        .eq("email", email)
+        .eq("token", hashedToken)
+        .single();
+
+    if (tokenError || !tokenData) {
+        return { error: "Invalid or expired password reset link. Please try again." };
+    }
+
+    if (new Date(tokenData.expires_at) < new Date()) {
+        await supabase.from("password_resets").delete().eq("email", email);
+        return { error: "Your password reset link has expired. Please request a new one." };
+    }
+
+    const { data: userData, error: userError } = await supabase
+        .from("user_details")
+        .select("id")
+        .eq("email", email)
+        .single();
+
+    if (userError || !userData) {
+        return { error: "Could not find a user with that email." };
+    }
+    
+    const { error: updateError } = await supabase.auth.admin.updateUserById(
+        userData.id,
+        { password: password }
     );
-  }
 
-  const { error } = await supabase.auth.updateUser({ password });
+    if (updateError) {
+        return { error: "Could not update password. Please try again." };
+    }
+    
+    await supabase.from("password_resets").delete().eq("email", email);
+    
+    await supabase.auth.signOut();
 
-  if (error) {
-    console.error("Password Reset Error:", error.message);
     return redirect(
-      `/reset-password?error=Could not update password. Please try again.`
+        "/login?message=Your password has been reset successfully. Please sign in."
     );
-  }
-  
-  await supabase.auth.signOut();
-
-  return redirect(
-    "/login?message=Your password has been reset successfully. Please sign in."
-  );
 }
