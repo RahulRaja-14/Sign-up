@@ -279,7 +279,8 @@ export async function resetPassword(formData: FormData) {
     
     await supabase.auth.signOut();
 
-    return redirect(
-        "/login?message=Your password has been reset successfully. Please sign in."
-    );
+    return { 
+        success: true, 
+        redirectUrl: "/login?message=Your password has been reset successfully. Please sign in." 
+    };
 }

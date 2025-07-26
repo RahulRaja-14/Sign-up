@@ -80,6 +80,8 @@ export function ResetPasswordForm() {
         description: <p>{result.error}</p>,
         variant: "destructive",
       });
+    } else if (result?.success && result.redirectUrl) {
+      window.location.href = result.redirectUrl;
     }
   }
 
