@@ -24,6 +24,8 @@
  
     --accent: 178 48% 60%;
     --accent-foreground: 233 15% 10%;
+    
+    --purple: 262 80% 60%;
  
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
@@ -56,7 +58,9 @@
  
     --accent: 178 48% 60%;
     --accent-foreground: 233 15% 10%;
- 
+    
+    --purple: 262 80% 60%;
+
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
 
@@ -76,5 +80,5 @@
 }
 
 .gradient-text {
-  @apply bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent;
+  @apply bg-gradient-to-r from-primary to-purple bg-clip-text text-transparent;
 }
