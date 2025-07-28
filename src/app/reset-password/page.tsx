@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/card";
 import { ResetPasswordForm } from "@/components/auth/reset-password-form";
 import { Logo } from "@/components/auth/logo";
+import { Suspense } from "react";
 
 export default function ResetPasswordPage() {
   return (
@@ -22,7 +23,9 @@ export default function ResetPasswordPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ResetPasswordForm />
+          <Suspense fallback={<div>Loading...</div>}>
+            <ResetPasswordForm />
+          </Suspense>
         </CardContent>
       </Card>
     </main>

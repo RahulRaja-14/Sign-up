@@ -53,7 +53,7 @@ function SubmitButton() {
   );
 }
 
-export function SignupForm() {
+export function SignUpForm() {
   const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
